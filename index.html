@@ -252,7 +252,7 @@ const TYPE_LABEL = {exp:"支出", inc:"収入"};
 const NO_SUB = "（小分類なし）";
 /* 小分類の一覧。保存データに小分類がまだ無いときは初期値を使う */
 function subsOf(t, c){ const sub = S.cats && S.cats.sub ? S.cats.sub : DEFAULT_SUB; return ((sub[t] || {})[c]) || []; }
-const APP_VERSION = "2026.10.16-1125"; // 独立版のビルド時に日時が入る
+const APP_VERSION = "2026.10.16-1135"; // 独立版のビルド時に日時が入る
 
 /* ---------- utils ---------- */
 const $ = s => document.querySelector(s);
@@ -582,6 +582,7 @@ function viewSync(){
   if (c.url) return '<section class="card"><h2>Googleスプレッドシート連携</h2>' +
     '<p class="note">記帳や設定を変えるたびに、Googleスプレッドシートへ自動で保存します。パソコンではスプレッドシートの「月別集計」「内訳」「明細」シートで確認できます。</p>' +
     '<div id="syncState">' + syncStateHtml(c) + '</div>' +
+    '<p class="note">接続先のデプロイID：<b class="num">' + esc(((c.url.match(/\/s\/([^/]+)\//) || [])[1] || "").slice(0, 12)) + '…</b>（Apps Scriptの「デプロイを管理」に表示されるIDの先頭と同じものが、このiPhoneの接続先です）</p>' +
     '<div class="btns two"><button class="btn ghost" data-act="syncNow">今すぐ保存</button><button class="btn ghost" data-act="syncLoad">Googleから復元</button></div>' +
     (S.tokenEdit
       ? '<div class="recform"><label class="f">新しい合言葉（スプレッドシート側で変更・再デプロイしたもの）<input class="field" id="gNewToken" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" value="' + esc(S.gNewToken || "") + '"></label>' +
