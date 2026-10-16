@@ -209,6 +209,7 @@ const DEFAULT_CATS = {
 };
 const PALETTE = ["#4F7FD6","#7DB547","#D9A441","#5BA7B5","#D0675C","#8A6FD1","#4DA57A","#C9B83C","#D17CA6","#6E8BA8","#E08A4A","#3E9C9C"];
 const TYPE_LABEL = {exp:"支出", inc:"収入"};
+const APP_VERSION = "2026.10.16-0936"; // 独立版のビルド時に日時が入る
 
 /* ---------- utils ---------- */
 const $ = s => document.querySelector(s);
@@ -480,7 +481,7 @@ function viewSettings(){
       : '<p class="note">メモを入れて記帳すると、ここに候補として登録されます。</p>') +
     '<p class="note">使わなくなった候補は × で外せます。記帳済みの明細には影響しません。</p></section>' +
     '<section class="card"><h2>データの保存先</h2><div class="status' + (local ? " local" : "") + '"><i></i><span>' +
-    (local ? "このiPhoneの中に保存しています。Safariの履歴やWebサイトデータを消去すると失われるため、月に一度はバックアップを保存してください。" : "claude.ai のクラウドに保存しています。iPhoneとPCのどちらからでも同じデータを使えます。") + '</span></div></section>' +
+    (local ? "このiPhoneの中に保存しています。Safariの履歴やWebサイトデータを消去すると失われるため、月に一度はバックアップを保存してください。" : "claude.ai のクラウドに保存しています。iPhoneとPCのどちらからでも同じデータを使えます。") + '</span></div>' + (APP_VERSION ? '<p class="note num">バージョン ' + APP_VERSION + '</p>' : '') + '</section>' +
     '<section class="card"><h2>バックアップと引き継ぎ</h2>' +
     '<p class="note">すべての明細・項目・候補・定期登録を1つのファイルに保存します。機種変更や、別の版へデータを移すときに使います。</p>' +
     (S.restore
@@ -775,7 +776,15 @@ boot();
 })();
 </script>
 <script>
-if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+if ("serviceWorker" in navigator) {
+  // 新しい版が届いたら一度だけ読み込み直す（初回インストール時は除く）
+  const hadController = !!navigator.serviceWorker.controller;
+  let reloaded = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => { if (hadController && !reloaded) { reloaded = true; location.reload(); } });
+  window.addEventListener("load", () => navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then(reg => {
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) reg.update().catch(() => {}); });
+  }).catch(() => {}));
+}
 </script>
 </body>
 </html>
