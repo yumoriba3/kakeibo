@@ -156,6 +156,8 @@ button.sug:active{background:var(--accent-soft);border-color:var(--accent)}
 .addrow .btn{padding:9px 16px;font-size:15px}
 .renamerow{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:6px;grid-column:2 / 4}
 .renamerow .btn{padding:8px 12px;font-size:14px}
+.filebtn{position:relative;overflow:hidden;text-align:center}
+.filebtn input{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer}
 .status{display:flex;align-items:flex-start;gap:8px;font-size:12.5px;color:var(--muted)}
 .status i{width:8px;height:8px;border-radius:50%;background:var(--inc);flex:none;margin-top:6px}
 .status.local i{background:var(--exp)}
@@ -258,7 +260,7 @@ function localStore(){
 /* ---------- state ---------- */
 const S = {
   store: null, tab: "input", ym: todayStr().slice(0, 7),
-  cats: clone(DEFAULT_CATS), months: [], memos: [], rec: [], recForm: null, restore: null, entries: [], loaded: false,
+  cats: clone(DEFAULT_CATS), months: [], memos: [], rec: [], recForm: null, restore: null, backupCopy: null, pasting: false, entries: [], loaded: false,
   form: null, setType: "exp", armed: null, renaming: null, copyText: null
 };
 function blankForm(keep){ return { id: null, origYm: null, d: (keep && keep.d) || todayStr(), t: (keep && keep.t) || "exp", c: "", a: "", m: "" }; }
@@ -485,7 +487,13 @@ function viewSettings(){
       ? '<div class="recform"><p class="note" style="color:var(--ink)">' + (S.restore.months.length ? ymLabel(S.restore.months[0]) + '〜' + ymLabel(S.restore.months[S.restore.months.length - 1]) + 'の明細 ' + S.restore.count + '件' : '明細なし') + 'を復元します。同じ月のデータと設定は、バックアップの内容に置き換わります。</p>' +
         '<div class="btns two"><button class="btn ghost" data-act="restoreCancel">やめる</button><button class="btn" data-act="restoreDo">復元する</button></div></div>'
       : '<div class="btns"><button class="btn" data-act="backup">バックアップを保存</button>' +
-        '<label class="btn ghost" for="restoreFile" style="text-align:center">バックアップから復元</label><input type="file" id="restoreFile" accept=".json,application/json" hidden></div>') +
+        '<label class="btn ghost filebtn" for="restoreFile">ファイルから復元<input type="file" id="restoreFile"></label></div>' +
+        '<h2 style="margin-top:6px">ファイルが使えないとき</h2>' +
+        '<p class="note">保存したい側で「バックアップをコピー」、移したい側で「貼り付けて復元」を使います。</p>' +
+        (S.backupCopy != null
+          ? '<button class="btn" data-act="copyBackup">コピーする</button><textarea class="copy" id="backupBox" readonly>' + esc(S.backupCopy) + '</textarea>'
+          : '<div class="btns two"><button class="btn ghost" data-act="prepCopy">バックアップをコピー</button><button class="btn ghost" data-act="pasteOpen">貼り付けて復元</button></div>') +
+        (S.pasting ? '<textarea class="copy" id="pasteBox" placeholder="ここを長押しして「ペースト」"></textarea><button class="btn" data-act="pasteDo">貼り付けた内容を確認</button>' : '')) +
     '</section>';
 }
 
@@ -574,27 +582,39 @@ async function saveBook(wb, filename){
 const BACKUP_PATH = /^(settings\/(categories|index|memos|recurring)|months\/\d{4}-\d{2})$/;
 async function exportBackup(){
   let json;
-  try {
-    const docs = {};
-    for (const p of ["settings/categories", "settings/index", "settings/memos", "settings/recurring"]) { const b = await S.store.get(p); if (b) docs[p] = b; }
-    for (const ym of (docs["settings/index"] && docs["settings/index"].months) || []) { const b = await S.store.get("months/" + ym); if (b) docs["months/" + ym] = b; }
-    json = JSON.stringify({ app: "my-cashbook", version: 1, exportedAt: new Date().toISOString(), docs });
-  } catch (e) { return toast("データを読み込めませんでした。もう一度お試しください"); }
+  try { json = await backupText(); } catch (e) { return toast("データを読み込めませんでした。もう一度お試しください"); }
   if (await saveFile("kakeibo_backup_" + todayStr() + ".json", new Blob([json], { type: "application/json" }))) toast("バックアップを保存しました");
+}
+async function backupText(){
+  const docs = {};
+  for (const p of ["settings/categories", "settings/index", "settings/memos", "settings/recurring"]) { const b = await S.store.get(p); if (b) docs[p] = b; }
+  for (const ym of (docs["settings/index"] && docs["settings/index"].months) || []) { const b = await S.store.get("months/" + ym); if (b) docs["months/" + ym] = b; }
+  return JSON.stringify({ app: "my-cashbook", version: 1, exportedAt: new Date().toISOString(), docs });
+}
+/* 貼り付け用：ボタンを押したときに中身を準備し、もう一度押すとコピーする（iPhoneはクリック直後でないとコピーできないため） */
+async function prepareCopy(){
+  try { S.backupCopy = await backupText(); renderView(); toast("準備できました。「コピーする」を押してください"); }
+  catch (e) { toast("データを読み込めませんでした。もう一度お試しください"); }
+}
+function copyBackup(){
+  const text = S.backupCopy, box = $("#backupBox");
+  const fallback = () => { if (box) { box.focus(); box.select(); } toast("下の文字を長押しして「すべてを選択」→「コピー」してください"); };
+  try { navigator.clipboard.writeText(text).then(() => toast("コピーしました。独立版の「貼り付けて復元」に貼り付けてください"), fallback); } catch (e) { fallback(); }
+}
+function parseBackup(text){
+  try {
+    const data = JSON.parse(String(text).trim().replace(/^\uFEFF/, ""));
+    if (!data || data.app !== "my-cashbook" || !data.docs) throw 0;
+    const docs = {};
+    Object.keys(data.docs).forEach(k => { if (BACKUP_PATH.test(k) && data.docs[k] && typeof data.docs[k] === "object") docs[k] = data.docs[k]; });
+    const months = Object.keys(docs).filter(k => k.startsWith("months/")).map(k => k.slice(7)).sort();
+    const count = months.reduce((n, ym) => n + ((docs["months/" + ym].entries || []).length), 0);
+    S.restore = { docs, months, count, at: data.exportedAt || "" }; S.pasting = false; renderView();
+  } catch (e) { toast("出納帳のバックアップとして読み取れませんでした。全文がそろっているか確認してください"); }
 }
 function readBackup(file){
   const r = new FileReader();
-  r.onload = () => {
-    try {
-      const data = JSON.parse(r.result);
-      if (!data || data.app !== "my-cashbook" || !data.docs) throw 0;
-      const docs = {};
-      Object.keys(data.docs).forEach(k => { if (BACKUP_PATH.test(k) && data.docs[k] && typeof data.docs[k] === "object") docs[k] = data.docs[k]; });
-      const months = Object.keys(docs).filter(k => k.startsWith("months/")).map(k => k.slice(7)).sort();
-      const count = months.reduce((n, ym) => n + ((docs["months/" + ym].entries || []).length), 0);
-      S.restore = { docs, months, count, at: data.exportedAt || "" }; renderView();
-    } catch (e) { toast("このファイルは出納帳のバックアップではありません"); }
-  };
+  r.onload = () => parseBackup(r.result);
   r.onerror = () => toast("ファイルを読み込めませんでした");
   r.readAsText(file);
 }
@@ -652,7 +672,7 @@ function copyTsv(){
 /* ---------- events ---------- */
 document.addEventListener("click", ev => {
   const tabBtn = ev.target.closest(".tabs button");
-  if (tabBtn) { S.tab = tabBtn.dataset.tab; S.armed = null; S.renaming = null; S.copyText = null; S.recForm = null; S.restore = null; if (S.tab !== "input" && S.form.id) S.form = blankForm(); renderTabs(); renderView(); window.scrollTo(0, 0); return; }
+  if (tabBtn) { S.tab = tabBtn.dataset.tab; S.armed = null; S.renaming = null; S.copyText = null; S.recForm = null; S.restore = null; S.backupCopy = null; S.pasting = false; if (S.tab !== "input" && S.form.id) S.form = blankForm(); renderTabs(); renderView(); window.scrollTo(0, 0); return; }
   const b = ev.target.closest("[data-act]"); if (!b) return;
   const act = b.dataset.act, i = Number(b.dataset.i);
   const t = S.setType;
@@ -691,6 +711,10 @@ document.addEventListener("click", ev => {
     case "renameCancel": S.renaming = null; renderView(); break;
     case "renameSave": renameCat(i); break;
     case "backup": exportBackup(); break;
+    case "prepCopy": prepareCopy(); break;
+    case "copyBackup": copyBackup(); break;
+    case "pasteOpen": S.pasting = true; S.backupCopy = null; renderView(); { const t = $("#pasteBox"); if (t) t.focus(); } break;
+    case "pasteDo": { const t = $("#pasteBox"); if (!t || !t.value.trim()) return toast("先にバックアップの内容を貼り付けてください"); parseBackup(t.value); break; }
     case "restoreCancel": S.restore = null; renderView(); break;
     case "restoreDo": doRestore(); break;
     case "recNew": S.recForm = blankRec(); renderView(); break;
