@@ -107,6 +107,22 @@ button.sug:active{background:var(--accent-soft);border-color:var(--accent)}
 .sug i{width:6px;height:6px;border-radius:50%;flex:none}
 .sug small{color:var(--muted);font-size:11px}
 .sug .x{border:0;background:transparent;color:var(--exp);padding:0 0 0 4px;font-size:14px;line-height:1}
+.subrow{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:-4px}
+.subchip{border:1px solid var(--line);background:var(--bg);border-radius:999px;padding:6px 12px;font-size:13px}
+.subchip[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft);color:var(--accent);font-weight:700}
+.subn{color:var(--muted);font-size:12.5px;font-weight:400}
+button.brow{border:0;background:transparent;padding:0;text-align:left;width:100%;font:inherit;color:inherit}
+button.brow:disabled{cursor:default;opacity:1}
+.chev{color:var(--muted);font-size:11px;margin-left:6px}
+.subbars{display:grid;gap:4px;margin:-4px 0 4px 12px;padding-left:10px;border-left:2px solid var(--line);font-size:12.5px}
+.subbars .l{display:flex;justify-content:space-between;gap:8px;color:var(--muted)}
+.subbars .l small{margin-left:6px}
+.subcount{display:block;font-size:11px;color:var(--muted);font-weight:400}
+.catpanel{display:grid;gap:10px;padding:12px;margin:2px 0 10px 20px;border:1px solid var(--accent);border-radius:12px;background:var(--bg)}
+.catpanel .field{background:var(--surface)}
+.catpanel .addrow .btn{padding:9px 12px;font-size:14px}
+.cat.sub{grid-template-columns:6px minmax(0,1fr) auto}
+.cat.sub i{width:6px;height:6px;background:var(--line)}
 .btn{border:0;border-radius:12px;padding:13px 16px;font-weight:700;background:var(--accent);color:var(--accent-ink);font-size:16px}
 .btn:active{opacity:.85}
 .btn.ghost{background:transparent;color:var(--accent);border:1px solid var(--line)}
@@ -212,9 +228,31 @@ const DEFAULT_CATS = {
   exp:["日用雑貨","食材費","外食","通信","サブスク","鎌倉マンション","水道・光熱","医療・保険","美容・衣服","交際費","交通","エンタメ","サーフィン関連","バイク関連","ギター関連","トレーニング関連","雑費","酒類","カーシェアリング","コインパーキング","住まい","税金","大型出費","iDeCo","米国株積立","NISA"],
   inc:["給与所得","楽天証券","日当","還付金","年末調整","臨時収入","賞与","立替金返済","事業所得","その他","楽天証券出金"]
 };
+/* 小分類の初期値（Zaimで使っていた分類） */
+const DEFAULT_SUB = { inc: {}, exp: {
+  "日用雑貨": ["日用品","消耗品","小物雑貨","新聞","その他"],
+  "外食": ["コンビニコーヒー","弁当","外食","飲料","コンビニ"],
+  "通信": ["ペイデイ","楽天モバイル","LINEMO","POVO","NHK","Appleストレージ50GB","Appleストレージ200GB","Yahooプレミアム会員","Yahooメールセキュリティパック","インターネット関連費","放送サービス料金"],
+  "サブスク": ["Apple music/storage","Wantedly People","Zaimu premium","Claude code","ウェザーニュース","その他"],
+  "鎌倉マンション": ["ローン返済","返済保険①②","管理費","駐車場","インターネット","バイク駐車場","町内会費","その他"],
+  "水道・光熱": ["電気","ガス","水道","その他"],
+  "医療・保険": ["病院代","歯医者","薬代","アフラックがん保険","アフラックエバーハーフ","チューリッヒフリーケアプログラム","医療保険","その他","都民共済"],
+  "美容・衣服": ["マッサージ","散髪","洋服","アクセサリー・小物","下着","ジム・健康","美容院","コスメ","エステ・ネイル","クリーニング","その他","ヘアケア","サプリメント"],
+  "交際費": ["外食","飲み会","プレゼント","ご祝儀・香典","その他","募金","積立"],
+  "交通": ["電車","タクシー","バス","ETC","飛行機","その他","グリーン車"],
+  "エンタメ": ["レジャー","イベント","SpeakBuddy","映画・動画","音楽","漫画","書籍","ゲーム","その他"],
+  "バイク関連": ["パーツ","消耗品","安全装備品","保険","ガソリン","備品","点検","バイク税金","車体","教習所","ウェア"],
+  "トレーニング関連": ["道具","プロテイン類","ウェア関係"],
+  "雑費": ["お墓参り","サブスク","年会費","契約更新","自己投資","お小遣い","参拝","募金","使途不明金","立替金","未分類","現金の引出"],
+  "カーシェアリング": ["基本料","利用料"],
+  "大型出費": ["旅行","住宅","自動車","バイク","家具","寝具","結婚","出産","介護","家電"]
+} };
 const PALETTE = ["#4F7FD6","#7DB547","#D9A441","#5BA7B5","#D0675C","#8A6FD1","#4DA57A","#C9B83C","#D17CA6","#6E8BA8","#E08A4A","#3E9C9C"];
 const TYPE_LABEL = {exp:"支出", inc:"収入"};
-const APP_VERSION = "2026.10.16-1042"; // 独立版のビルド時に日時が入る
+const NO_SUB = "（小分類なし）";
+/* 小分類の一覧。保存データに小分類がまだ無いときは初期値を使う */
+function subsOf(t, c){ const sub = S.cats && S.cats.sub ? S.cats.sub : DEFAULT_SUB; return ((sub[t] || {})[c]) || []; }
+const APP_VERSION = "2026.10.16-1107"; // 独立版のビルド時に日時が入る
 
 /* ---------- utils ---------- */
 const $ = s => document.querySelector(s);
@@ -266,10 +304,10 @@ function localStore(){
 /* ---------- state ---------- */
 const S = {
   store: null, tab: "input", ym: todayStr().slice(0, 7),
-  cats: clone(DEFAULT_CATS), months: [], memos: [], rec: [], recForm: null, restore: null, backupCopy: null, pasting: false, entries: [], loaded: false,
+  cats: clone(DEFAULT_CATS), months: [], memos: [], rec: [], recForm: null, restore: null, backupCopy: null, pasting: false, catOpen: null, subRenaming: null, repOpen: {}, entries: [], loaded: false,
   form: null, setType: "exp", armed: null, renaming: null, copyText: null
 };
-function blankForm(keep){ return { id: null, origYm: null, d: (keep && keep.d) || todayStr(), t: (keep && keep.t) || "exp", c: "", a: "", m: "" }; }
+function blankForm(keep){ return { id: null, origYm: null, d: (keep && keep.d) || todayStr(), t: (keep && keep.t) || "exp", c: "", s: "", a: "", m: "" }; }
 S.form = blankForm();
 
 let unsubMonth = null;
@@ -293,7 +331,7 @@ function renderTabs(){ document.querySelectorAll(".tabs button").forEach(b => { 
 
 function entryRow(e){
   return '<button class="ent" data-act="edit" data-id="' + esc(e.id) + '"><i style="background:' + colorOf(e.c) + '"></i>' +
-    '<span class="t"><span>' + esc(e.c) + (e.r ? '<b class="badge">定期</b>' : '') + '</span>' + (e.m ? '<small>' + esc(e.m) + '</small>' : '') + '</span>' +
+    '<span class="t"><span>' + esc(e.c) + (e.s ? '<span class="subn"> / ' + esc(e.s) + '</span>' : '') + (e.r ? '<b class="badge">定期</b>' : '') + '</span>' + (e.m ? '<small>' + esc(e.m) + '</small>' : '') + '</span>' +
     '<span class="a num' + (e.t === "inc" ? " inc" : "") + '">' + (e.t === "inc" ? "+" : "") + yen(e.a) + '</span></button>';
 }
 
@@ -310,12 +348,20 @@ function viewInput(){
     '<label class="f">メモ（任意）<input class="field" id="fMemo" placeholder="店名・内容など" autocomplete="off" value="' + esc(f.m) + '"></label></div>' +
     '<div class="sugs" id="memoSug" role="group" aria-label="メモの候補" hidden></div>' +
     '<div class="chips" role="group" aria-label="項目">' + chips + '</div>' +
+    '<div id="subBox"></div>' +
     (editing
       ? '<div class="btns two"><button class="btn ghost" data-act="cancel">キャンセル</button><button class="btn" data-act="save">更新する</button></div>' +
         '<button class="btn danger" data-act="delEntry">' + (S.armed === "entry" ? "もう一度押すと削除します" : "この明細を削除") + '</button>'
       : '<button class="btn" data-act="save">保存する</button>') +
     '</section>' +
     (editing ? '' : '<section class="card"><h2 id="dayTitle"></h2><div id="dayList"></div></section>');
+}
+function renderSubs(){
+  const box = $("#subBox"); if (!box) return;
+  const f = S.form, list = f.c ? subsOf(f.t, f.c).slice() : [];
+  if (f.s && !list.includes(f.s)) list.push(f.s);
+  box.innerHTML = list.length ? '<div class="subrow" role="group" aria-label="小分類"><span class="sugl">小分類</span>' +
+    list.map(x => '<button class="subchip" data-act="sub" data-s="' + esc(x) + '" aria-pressed="' + (f.s === x) + '">' + esc(x) + '</button>').join("") + '</div>' : "";
 }
 function memoCandidates(){
   const f = S.form, q = (f.m || "").trim().toLowerCase();
@@ -330,15 +376,15 @@ function renderSugs(){
   const list = memoCandidates();
   box.hidden = !list.length;
   box.innerHTML = list.length ? '<span class="sugl">候補</span>' + list.map(x =>
-    '<button class="sug" data-act="sug" data-m="' + esc(x.m) + '" data-c="' + esc(x.c) + '"><i style="background:' + colorOf(x.c) + '"></i>' + esc(x.m) + '</button>').join("") : "";
+    '<button class="sug" data-act="sug" data-m="' + esc(x.m) + '" data-c="' + esc(x.c) + '" data-s="' + esc(x.s || "") + '"><i style="background:' + colorOf(x.c) + '"></i>' + esc(x.m) + '</button>').join("") : "";
 }
 async function rememberMemo(e){
   if (!e.m) return;
   await S.store.mutate("settings/memos", b => {
     const items = (b && b.items) || [];
     const i = items.findIndex(x => x.m === e.m && x.t === e.t);
-    if (i >= 0) { items[i].n += 1; items[i].c = e.c; items[i].last = Date.now(); }
-    else items.push({ m: e.m, t: e.t, c: e.c, n: 1, last: Date.now() });
+    if (i >= 0) { items[i].n += 1; items[i].c = e.c; items[i].s = e.s || ""; items[i].last = Date.now(); }
+    else items.push({ m: e.m, t: e.t, c: e.c, s: e.s || "", n: 1, last: Date.now() });
     items.sort((p, q) => q.last - p.last);
     return { items: items.slice(0, 300) };
   });
@@ -368,11 +414,17 @@ function breakdown(type){
   S.entries.filter(e => e.t === type).forEach(e => sums[e.c] = (sums[e.c] || 0) + e.a);
   const rows = Object.entries(sums).sort((a, b) => b[1] - a[1]);
   const total = rows.reduce((s, r) => s + r[1], 0), max = rows.length ? rows[0][1] : 1;
-  const body = rows.length ? rows.map(([c, v]) =>
-    '<div class="brow"><div class="l"><span>' + esc(c) + '</span><span class="num">' + yen(v) + '<small>' + (v / total * 100).toFixed(1) + '%</small></span></div>' +
-    '<div class="track"><div style="width:' + (v / max * 100).toFixed(1) + '%;background:' + colorOf(c) + '"></div></div></div>').join("")
+  const body = rows.length ? rows.map(([c, v]) => {
+    const k = type + "|" + c, open = !!S.repOpen[k];
+    const subs = {}; S.entries.filter(e => e.t === type && e.c === c).forEach(e => { const n = e.s || NO_SUB; subs[n] = (subs[n] || 0) + e.a; });
+    const subRows = Object.entries(subs).sort((a, b2) => b2[1] - a[1]);
+    const hasSub = subRows.some(r => r[0] !== NO_SUB);
+    return '<button class="brow' + (hasSub ? ' tap' : '') + '" data-act="repToggle" data-k="' + esc(k) + '"' + (hasSub ? ' aria-expanded="' + open + '"' : ' disabled') + '><div class="l"><span>' + esc(c) + (hasSub ? '<span class="chev">' + (open ? '▾' : '▸') + '</span>' : '') + '</span><span class="num">' + yen(v) + '<small>' + (v / total * 100).toFixed(1) + '%</small></span></div>' +
+      '<div class="track"><div style="width:' + (v / max * 100).toFixed(1) + '%;background:' + colorOf(c) + '"></div></div></button>' +
+      (open && hasSub ? '<div class="subbars">' + subRows.map(([n, sv]) => '<div class="l"><span>' + esc(n) + '</span><span class="num">' + yen(sv) + '<small>' + (sv / v * 100).toFixed(1) + '%</small></span></div>').join("") + '</div>' : '');
+  }).join("")
     : '<p class="empty">' + TYPE_LABEL[type] + 'の記帳はありません。</p>';
-  return '<section class="card"><h2>' + TYPE_LABEL[type] + 'の内訳</h2><div class="bars">' + body + '</div>' +
+  return '<section class="card"><h2>' + TYPE_LABEL[type] + 'の内訳</h2>' + (type === "exp" && rows.length ? '<p class="note">▸の付いた項目を押すと、小分類ごとの金額を表示します。</p>' : '') + '<div class="bars">' + body + '</div>' +
     '<div class="total"><span>' + TYPE_LABEL[type] + '合計</span><span class="num">' + yen(total) + '</span></div></section>';
 }
 function viewReport(){
@@ -390,12 +442,12 @@ function viewReport(){
 /* ---------- 毎月の定期支払い・収入 ---------- */
 const dayText = d => d >= 31 ? "月末" : d + "日";
 function recDate(ym, day){ const [y, m] = ym.split("-").map(Number); return ym + "-" + pad(Math.min(day, new Date(y, m, 0).getDate())); }
-function blankRec(){ return { id: null, t: "exp", c: "", a: "", day: 27, m: "", now: false }; }
+function blankRec(){ return { id: null, t: "exp", c: "", s: "", a: "", day: 27, m: "", now: false }; }
 function viewRecurring(){
   const rf = S.recForm, cur = todayStr().slice(0, 7);
   const rows = S.rec.map(r =>
     '<button class="recrow" data-act="recEdit" data-id="' + esc(r.id) + '"><i style="background:' + colorOf(r.c) + '"></i>' +
-    '<span class="t"><span>' + esc(r.c) + '</span><small>毎月' + dayText(r.day) + (r.m ? '・' + esc(r.m) : '') + (r.from > cur ? '・' + ymLabel(r.from) + 'から' : '') + '</small></span>' +
+    '<span class="t"><span>' + esc(r.c) + (r.s ? '<span class="subn"> / ' + esc(r.s) + '</span>' : '') + '</span><small>毎月' + dayText(r.day) + (r.m ? '・' + esc(r.m) : '') + (r.from > cur ? '・' + ymLabel(r.from) + 'から' : '') + '</small></span>' +
     '<span class="a num' + (r.t === "inc" ? " inc" : "") + '">' + (r.t === "inc" ? "+" : "") + yen(r.a) + '</span></button>').join("");
   let form = "";
   if (rf) {
@@ -405,6 +457,7 @@ function viewRecurring(){
       '<div class="seg" role="group" aria-label="区分"><button data-act="recType" data-t="exp" aria-pressed="' + (rf.t === "exp") + '">支出</button><button data-act="recType" data-t="inc" aria-pressed="' + (rf.t === "inc") + '">収入</button></div>' +
       '<div class="row2"><label class="f">項目<select class="field" id="rCat"><option value="">選んでください</option>' + cats.map(c => '<option' + (c === rf.c ? " selected" : "") + '>' + esc(c) + '</option>').join("") + '</select></label>' +
       '<label class="f">金額<input class="field num" id="rAmount" inputmode="numeric" autocomplete="off" placeholder="0" value="' + (rf.a ? Number(rf.a).toLocaleString("ja-JP") : "") + '"></label></div>' +
+      (rf.c && (subsOf(rf.t, rf.c).length || rf.s) ? '<label class="f">小分類（任意）<select class="field" id="rSub"><option value="">なし</option>' + subsOf(rf.t, rf.c).concat(rf.s && !subsOf(rf.t, rf.c).includes(rf.s) ? [rf.s] : []).map(x => '<option' + (x === rf.s ? " selected" : "") + '>' + esc(x) + '</option>').join("") + '</select></label>' : '') +
       '<div class="row2"><label class="f">記帳する日<select class="field" id="rDay">' + days.map(d => '<option value="' + d + '"' + (d === rf.day ? " selected" : "") + '>毎月' + dayText(d) + '</option>').join("") + '</select></label>' +
       '<label class="f">メモ（任意）<input class="field" id="rMemo" placeholder="家賃・保険料など" value="' + esc(rf.m) + '"></label></div>' +
       (rf.id ? '<p class="note">変更は来月以降の記帳に反映されます。記帳済みの明細は変わりません。</p>'
@@ -423,7 +476,7 @@ async function applyRecurring(ym, items){
   let added = 0;
   await S.store.mutate("months/" + ym, b => {
     const body = Object.assign({ entries: [] }, b), applied = (body.applied || []).slice();
-    items.forEach(r => { if (applied.includes(r.id)) return; applied.push(r.id); body.entries.push({ id: uid(), d: recDate(ym, r.day), t: r.t, c: r.c, a: r.a, m: r.m || "", r: r.id }); added++; });
+    items.forEach(r => { if (applied.includes(r.id)) return; applied.push(r.id); const ne = { id: uid(), d: recDate(ym, r.day), t: r.t, c: r.c, a: r.a, m: r.m || "", r: r.id }; if (r.s) ne.s = r.s; body.entries.push(ne); added++; });
     if (!added) return null;
     body.applied = applied; body.entries.sort(byDate); return body;
   });
@@ -450,7 +503,7 @@ async function saveRec(){
   if (!rf.c) return toast("項目を選んでください");
   if (!a || a <= 0) return toast("金額を入力してください");
   const old = rf.id ? S.rec.find(x => x.id === rf.id) : null;
-  const r = { id: rf.id || uid(), t: rf.t, c: rf.c, a, day: rf.day, m: (rf.m || "").trim(), from: old ? old.from : (rf.now ? cur : shiftYM(cur, 1)) };
+  const r = { id: rf.id || uid(), t: rf.t, c: rf.c, s: rf.s || "", a, day: rf.day, m: (rf.m || "").trim(), from: old ? old.from : (rf.now ? cur : shiftYM(cur, 1)) };
   try {
     await S.store.mutate("settings/recurring", b => {
       const body = Object.assign({ items: [] }, b), i = body.items.findIndex(x => x.id === r.id);
@@ -573,12 +626,24 @@ async function syncLoad(){
 function viewSettings(){
   const t = S.setType, list = S.cats[t] || [];
   const rows = list.map((c, i) => {
-    const k = t + ":" + i;
-    if (S.renaming === k) return '<div class="cat"><i style="background:' + colorOf(c) + '"></i><div class="renamerow"><input class="field" id="renameInput" value="' + esc(c) + '" aria-label="新しい項目名"><button class="btn ghost" data-act="renameCancel">取消</button><button class="btn" data-act="renameSave" data-i="' + i + '">変更</button></div></div>';
-    return '<div class="cat"><i style="background:' + colorOf(c) + '"></i><button class="nm" data-act="rename" data-i="' + i + '" title="タップで名前を変更">' + esc(c) + '</button>' +
+    const k = t + ":" + i, subs = subsOf(t, c), open = S.catOpen === k;
+    const panel = open ? '<div class="catpanel">' +
+      '<label class="f">項目名<span class="addrow"><input class="field" id="renameInput" value="' + esc(c) + '" aria-label="項目名"><button class="btn ghost" data-act="renameSave" data-i="' + i + '">名前を変更</button></span></label>' +
+      '<div class="f">小分類' + (subs.length ? '' : '（まだありません）') + '</div>' +
+      '<div>' + subs.map((x, j) => {
+        const sk = "sub:" + k + ":" + j;
+        if (S.subRenaming === j) return '<div class="cat sub"><i></i><div class="renamerow"><input class="field" id="subRenameInput" value="' + esc(x) + '" aria-label="新しい小分類名"><button class="btn ghost" data-act="subRenameCancel">取消</button><button class="btn" data-act="subRenameSave" data-i="' + i + '" data-j="' + j + '">変更</button></div></div>';
+        return '<div class="cat sub"><i></i><button class="nm" data-act="subRename" data-j="' + j + '" title="タップで名前を変更">' + esc(x) + '</button>' +
+          '<span class="ops"><button data-act="subUp" data-i="' + i + '" data-j="' + j + '" aria-label="上へ"' + (j === 0 ? " disabled" : "") + '>↑</button>' +
+          '<button data-act="subDown" data-i="' + i + '" data-j="' + j + '" aria-label="下へ"' + (j === subs.length - 1 ? " disabled" : "") + '>↓</button>' +
+          '<button class="del' + (S.armed === sk ? " armed" : "") + '" data-act="delSub" data-i="' + i + '" data-j="' + j + '" aria-label="削除">' + (S.armed === sk ? "削除する" : "×") + '</button></span></div>';
+      }).join("") + '</div>' +
+      '<div class="addrow"><input class="field" id="newSub" placeholder="新しい小分類名" aria-label="新しい小分類名"><button class="btn" data-act="addSub" data-i="' + i + '">追加</button></div>' +
+      '<button class="btn ghost" data-act="catClose">閉じる</button></div>' : '';
+    return '<div class="cat"><i style="background:' + colorOf(c) + '"></i><button class="nm" data-act="catOpen" data-i="' + i + '" aria-expanded="' + open + '">' + esc(c) + '<small class="subcount">' + (subs.length ? '小分類 ' + subs.length : '小分類なし') + ' ' + (open ? '▾' : '▸') + '</small></button>' +
       '<span class="ops"><button data-act="up" data-i="' + i + '" aria-label="上へ"' + (i === 0 ? " disabled" : "") + '>↑</button>' +
       '<button data-act="down" data-i="' + i + '" aria-label="下へ"' + (i === list.length - 1 ? " disabled" : "") + '>↓</button>' +
-      '<button class="del' + (S.armed === k ? " armed" : "") + '" data-act="delCat" data-i="' + i + '" aria-label="削除">' + (S.armed === k ? "削除する" : "×") + '</button></span></div>';
+      '<button class="del' + (S.armed === k ? " armed" : "") + '" data-act="delCat" data-i="' + i + '" aria-label="削除">' + (S.armed === k ? "削除する" : "×") + '</button></span></div>' + panel;
   }).join("");
   const local = S.store.mode === "local";
   const restoreCard = S.restore
@@ -592,7 +657,7 @@ function viewSettings(){
     '<div class="seg" role="group"><button data-act="setType" data-t="exp" aria-pressed="' + (t === "exp") + '">支出の項目</button><button data-act="setType" data-t="inc" aria-pressed="' + (t === "inc") + '">収入の項目</button></div>' +
     '<div>' + rows + '</div>' +
     '<div class="addrow"><input class="field" id="newCat" placeholder="新しい項目名" aria-label="新しい項目名"><button class="btn" data-act="addCat">追加</button></div>' +
-    '<p class="note">項目名をタップすると名前を変更できます（過去の明細にも反映されます）。項目を削除しても、過去の明細と集計はそのまま残ります。</p></section>' +
+    '<p class="note">項目名をタップすると、名前の変更と小分類の追加・並べ替え・削除ができます。名前の変更は過去の明細にも反映されます。項目や小分類を削除しても、過去の明細と集計はそのまま残ります。</p></section>' +
     '<section class="card"><h2>メモの入力候補</h2>' +
     (S.memos.length
       ? '<div class="sugs wrapall">' + S.memos.slice().sort((a, b) => b.n - a.n || b.last - a.last).map(x =>
@@ -617,7 +682,7 @@ function viewSettings(){
 function renderView(){
   const v = $("#view");
   v.innerHTML = S.tab === "input" ? viewInput() : S.tab === "list" ? viewList() : S.tab === "report" ? viewReport() : viewSettings();
-  if (S.tab === "input") { renderDayList(); renderSugs(); }
+  if (S.tab === "input") { renderDayList(); renderSugs(); renderSubs(); }
 }
 function renderAll(){ renderSum(); renderTabs(); renderView(); }
 
@@ -633,6 +698,7 @@ async function saveEntry(){
   if (!/^\d{4}-\d{2}-\d{2}$/.test(f.d)) return toast("日付を入力してください");
   const e = { id: f.id || uid(), d: f.d, t: f.t, c: f.c, a, m: (f.m || "").trim() };
   if (f.r) e.r = f.r;
+  if (f.s) e.s = f.s;
   const ym = e.d.slice(0, 7), editing = !!f.id;
   try {
     if (f.origYm && f.origYm !== ym) await S.store.mutate("months/" + f.origYm, b => Object.assign({}, b, { entries: ((b && b.entries) || []).filter(x => x.id !== e.id) }));
@@ -652,25 +718,47 @@ async function deleteEntry(){
   try { await S.store.mutate("months/" + f.origYm, b => Object.assign({}, b, { entries: ((b && b.entries) || []).filter(x => x.id !== f.id) })); toast("削除しました"); S.armed = null; S.form = blankForm(); S.tab = "list"; renderAll(); }
   catch (err) { toast(errMsg(err)); }
 }
-function mutateCats(fn){ return S.store.mutate("settings/categories", b => { const c = b && b.exp ? b : clone(DEFAULT_CATS); return fn(c) === false ? null : c; }).catch(err => toast(errMsg(err))); }
+function mutateCats(fn){ return S.store.mutate("settings/categories", b => {
+  const c = b && b.exp ? b : clone(DEFAULT_CATS);
+  if (!c.sub) c.sub = clone(DEFAULT_SUB);
+  c.sub.exp = c.sub.exp || {}; c.sub.inc = c.sub.inc || {};
+  return fn(c) === false ? null : c;
+}).catch(err => toast(errMsg(err))); }
+/* 全ての月の明細を書き換える（名前変更の反映用） */
+async function rewriteEntries(match, apply){
+  for (const ym of S.months) {
+    await S.store.mutate("months/" + ym, b => { if (!b || !b.entries) return null; let hit = false; b.entries.forEach(e => { if (match(e)) { apply(e); hit = true; } }); return hit ? b : null; });
+  }
+}
 
+async function renameSub(i, j){
+  const t = S.setType, cat = S.cats[t][i], subs = subsOf(t, cat), oldName = subs[j], name = ($("#subRenameInput").value || "").trim();
+  if (!name) return toast("小分類名を入力してください");
+  if (name === oldName) { S.subRenaming = null; return renderView(); }
+  if (subs.includes(name)) return toast("同じ名前の小分類がすでにあります");
+  S.subRenaming = null;
+  await mutateCats(c => { const l = c.sub[t][cat] = (c.sub[t][cat] || subs.slice()); l[j] = name; });
+  try {
+    await rewriteEntries(e => e.t === t && e.c === cat && e.s === oldName, e => { e.s = name; });
+    await S.store.mutate("settings/recurring", b => { if (!b || !b.items) return null; let hit = false; b.items.forEach(r => { if (r.t === t && r.c === cat && r.s === oldName) { r.s = name; hit = true; } }); return hit ? b : null; });
+  } catch (err) { toast(errMsg(err)); return; }
+  toast("「" + oldName + "」を「" + name + "」に変更しました");
+}
 async function renameCat(i){
   const t = S.setType, oldName = S.cats[t][i], name = ($("#renameInput").value || "").trim();
   if (!name) return toast("項目名を入力してください");
-  if (name === oldName) { S.renaming = null; return renderView(); }
+  if (name === oldName) return toast("名前が変わっていません");
   if (S.cats[t].includes(name)) return toast("同じ名前の項目がすでにあります");
-  S.renaming = null;
-  await mutateCats(c => { c[t][i] = name; });
-  for (const ym of S.months) {
-    try { await S.store.mutate("months/" + ym, b => { if (!b || !b.entries) return null; let hit = false; b.entries.forEach(e => { if (e.t === t && e.c === oldName) { e.c = name; hit = true; } }); return hit ? b : null; }); } catch (err) { toast(errMsg(err)); return; }
-  }
+  await mutateCats(c => { c[t][i] = name; if (c.sub[t][oldName]) { c.sub[t][name] = c.sub[t][oldName]; delete c.sub[t][oldName]; } });
+  try { await rewriteEntries(e => e.t === t && e.c === oldName, e => { e.c = name; }); } catch (err) { toast(errMsg(err)); return; }
   toast("「" + oldName + "」を「" + name + "」に変更しました");
 }
 
 /* ---------- Excel ---------- */
 let dlPromise = null;
 const downloads = () => dlPromise || (dlPromise = (window.claude && window.claude.use ? window.claude.use("downloads") : Promise.resolve(null)).catch(() => null));
-function detailRows(list){ return [["日付", "区分", "項目", "金額", "メモ"]].concat(list.slice().sort((a, b) => a.d < b.d ? -1 : a.d > b.d ? 1 : 0).map(e => [e.d, TYPE_LABEL[e.t], e.c, e.a, e.m || ""])); }
+function detailRows(list){ return [["日付", "区分", "項目", "小分類", "金額", "メモ"]].concat(list.slice().sort((a, b) => a.d < b.d ? -1 : a.d > b.d ? 1 : 0).map(e => [e.d, TYPE_LABEL[e.t], e.c, e.s || "", e.a, e.m || ""])); }
+function orderedSubs(type, c, list){ const base = subsOf(type, c).slice(); list.forEach(e => { if (e.t === type && e.c === c && e.s && !base.includes(e.s)) base.push(e.s); }); if (list.some(e => e.t === type && e.c === c && !e.s)) base.push(""); return base; }
 function orderedCats(type, list){ const base = (S.cats[type] || []).slice(); list.forEach(e => { if (e.t === type && !base.includes(e.c)) base.push(e.c); }); return base; }
 function sheet(rows, widths){ const ws = XLSX.utils.aoa_to_sheet(rows); ws["!cols"] = widths.map(w => ({ wch: w })); return ws; }
 /* claude.ai 上では downloads 機能、独立版では共有シート（なければ通常のダウンロード）で保存 */
@@ -748,15 +836,20 @@ async function doRestore(){
 function exportMonth(){
   if (!window.XLSX) return saveBook(null);
   const list = S.entries, t = totals(list), wb = XLSX.utils.book_new();
-  const sum = [["区分", "項目", "金額", "構成比"]];
+  const sum = [["区分", "項目", "小分類", "金額", "構成比"]];
   ["inc", "exp"].forEach(type => {
     const tot = type === "inc" ? t.inc : t.exp;
-    orderedCats(type, list).forEach(c => { const v = list.filter(e => e.t === type && e.c === c).reduce((s, e) => s + e.a, 0); if (v) sum.push([TYPE_LABEL[type], c, v, tot ? Math.round(v / tot * 1000) / 10 + "%" : ""]); });
-    sum.push([TYPE_LABEL[type] + "合計", "", tot, ""]); sum.push([]);
+    orderedCats(type, list).forEach(c => {
+      const items = list.filter(e => e.t === type && e.c === c), v = items.reduce((s2, e) => s2 + e.a, 0);
+      if (!v) return;
+      sum.push([TYPE_LABEL[type], c, "", v, tot ? Math.round(v / tot * 1000) / 10 + "%" : ""]);
+      if (items.some(e => e.s)) orderedSubs(type, c, items).forEach(sn => { const sv = items.filter(e => (e.s || "") === sn).reduce((s2, e) => s2 + e.a, 0); if (sv) sum.push(["", "", sn || NO_SUB, sv, Math.round(sv / v * 1000) / 10 + "%"]); });
+    });
+    sum.push([TYPE_LABEL[type] + "合計", "", "", tot, ""]); sum.push([]);
   });
-  sum.push(["収支", "", t.bal, ""]);
-  XLSX.utils.book_append_sheet(wb, sheet(sum, [10, 18, 12, 8]), "集計");
-  XLSX.utils.book_append_sheet(wb, sheet(detailRows(list), [12, 6, 18, 12, 30]), "明細");
+  sum.push(["収支", "", "", t.bal, ""]);
+  XLSX.utils.book_append_sheet(wb, sheet(sum, [10, 18, 22, 12, 8]), "集計");
+  XLSX.utils.book_append_sheet(wb, sheet(detailRows(list), [12, 6, 18, 20, 12, 30]), "明細");
   saveBook(wb, "kakeibo_" + S.ym + ".xlsx");
 }
 async function exportYear(){
@@ -767,18 +860,22 @@ async function exportYear(){
   catch (e) { return toast("データを読み込めませんでした。もう一度お試しください"); }
   const head = ["項目"].concat(yms.map(m => Number(m.slice(5)) + "月"), ["年間合計"]);
   const rows = [head];
-  const monthSum = (type, c) => yms.map(m => all.filter(e => e.t === type && e.d.slice(0, 7) === m && (c == null || e.c === c)).reduce((s, e) => s + e.a, 0));
+  const monthSum = (type, c, sn) => yms.map(m => all.filter(e => e.t === type && e.d.slice(0, 7) === m && (c == null || e.c === c) && (sn == null || (e.s || "") === sn)).reduce((s, e) => s + e.a, 0));
   const line = (label, arr) => [label].concat(arr, [arr.reduce((s, v) => s + v, 0)]);
   ["inc", "exp"].forEach(type => {
     rows.push(["【" + TYPE_LABEL[type] + "】"]);
-    orderedCats(type, all).forEach(c => rows.push(line(c, monthSum(type, c))));
+    orderedCats(type, all).forEach(c => {
+      rows.push(line(c, monthSum(type, c)));
+      const items = all.filter(e => e.t === type && e.c === c);
+      if (items.some(e => e.s)) orderedSubs(type, c, items).forEach(sn => { const arr = monthSum(type, c, sn); if (arr.some(v => v)) rows.push(line("　└ " + (sn || NO_SUB), arr)); });
+    });
     rows.push(line(TYPE_LABEL[type] + "合計", monthSum(type, null))); rows.push([]);
   });
   const inc = monthSum("inc", null), exp = monthSum("exp", null);
   rows.push(line("収支", inc.map((v, i) => v - exp[i])));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, sheet(rows, [18].concat(Array(12).fill(10), [12])), "年間集計");
-  XLSX.utils.book_append_sheet(wb, sheet(detailRows(all), [12, 6, 18, 12, 30]), "明細");
+  XLSX.utils.book_append_sheet(wb, sheet(detailRows(all), [12, 6, 18, 20, 12, 30]), "明細");
   saveBook(wb, "kakeibo_" + y + ".xlsx");
 }
 function copyTsv(){
@@ -790,34 +887,58 @@ function copyTsv(){
 /* ---------- events ---------- */
 document.addEventListener("click", ev => {
   const tabBtn = ev.target.closest(".tabs button");
-  if (tabBtn) { S.tab = tabBtn.dataset.tab; S.armed = null; S.renaming = null; S.copyText = null; S.recForm = null; S.restore = null; S.backupCopy = null; S.pasting = false; S.tokenEdit = false; if (S.tab !== "input" && S.form.id) S.form = blankForm(); renderTabs(); renderView(); window.scrollTo(0, 0); return; }
+  if (tabBtn) { S.tab = tabBtn.dataset.tab; S.armed = null; S.renaming = null; S.copyText = null; S.recForm = null; S.restore = null; S.backupCopy = null; S.pasting = false; S.tokenEdit = false; S.catOpen = null; S.subRenaming = null; if (S.tab !== "input" && S.form.id) S.form = blankForm(); renderTabs(); renderView(); window.scrollTo(0, 0); return; }
   const b = ev.target.closest("[data-act]"); if (!b) return;
   const act = b.dataset.act, i = Number(b.dataset.i);
   const t = S.setType;
-  if (act !== "delCat" && act !== "delEntry" && act !== "recDel" && act !== "syncOff") S.armed = null;
+  if (act !== "delCat" && act !== "delEntry" && act !== "recDel" && act !== "syncOff" && act !== "delSub") S.armed = null;
   switch (act) {
-    case "type": S.form.t = b.dataset.t; S.form.c = ""; renderView(); break;
-    case "cat": S.form.c = b.dataset.c; document.querySelectorAll(".chip").forEach(x => x.setAttribute("aria-pressed", x === b)); renderSugs(); break;
+    case "type": S.form.t = b.dataset.t; S.form.c = ""; S.form.s = ""; renderView(); break;
+    case "cat": if (S.form.c !== b.dataset.c) S.form.s = ""; S.form.c = b.dataset.c; document.querySelectorAll(".chip").forEach(x => x.setAttribute("aria-pressed", x === b)); renderSubs(); renderSugs(); break;
+    case "sub": S.form.s = S.form.s === b.dataset.s ? "" : b.dataset.s; renderSubs(); break;
     case "sug": {
       S.form.m = b.dataset.m; const inp = $("#fMemo"); if (inp) inp.value = S.form.m;
       if (!S.form.c && (S.cats[S.form.t] || []).includes(b.dataset.c)) { S.form.c = b.dataset.c; document.querySelectorAll(".chip").forEach(x => x.setAttribute("aria-pressed", x.dataset.c === S.form.c)); }
-      renderSugs(); break;
+      if (S.form.c === b.dataset.c && !S.form.s && b.dataset.s) S.form.s = b.dataset.s;
+      renderSubs(); renderSugs(); break;
     }
     case "delMemo": { const m = b.dataset.m, mt = b.dataset.t; S.store.mutate("settings/memos", body => ({ items: ((body && body.items) || []).filter(x => !(x.m === m && x.t === mt)) })).catch(err => toast(errMsg(err))); break; }
     case "save": saveEntry(); break;
     case "cancel": S.form = blankForm(); S.tab = "list"; renderAll(); break;
     case "delEntry": deleteEntry(); break;
-    case "edit": { const e = S.entries.find(x => x.id === b.dataset.id); if (!e) return; S.form = { id: e.id, origYm: e.d.slice(0, 7), d: e.d, t: e.t, c: e.c, a: String(e.a), m: e.m || "", r: e.r || null }; S.tab = "input"; renderTabs(); renderView(); window.scrollTo(0, 0); break; }
+    case "edit": { const e = S.entries.find(x => x.id === b.dataset.id); if (!e) return; S.form = { id: e.id, origYm: e.d.slice(0, 7), d: e.d, t: e.t, c: e.c, a: String(e.a), m: e.m || "", r: e.r || null, s: e.s || "" }; S.tab = "input"; renderTabs(); renderView(); window.scrollTo(0, 0); break; }
     case "xlsxMonth": exportMonth(); break;
+    case "repToggle": { const k = b.dataset.k; S.repOpen[k] = !S.repOpen[k]; renderView(); break; }
     case "xlsxYear": exportYear(); break;
     case "copyTsv": copyTsv(); break;
-    case "setType": S.setType = b.dataset.t; S.renaming = null; renderView(); break;
-    case "up": case "down": { const j = act === "up" ? i - 1 : i + 1; mutateCats(c => { const l = c[t]; if (j < 0 || j >= l.length) return false; [l[i], l[j]] = [l[j], l[i]]; }); break; }
+    case "setType": S.setType = b.dataset.t; S.renaming = null; S.catOpen = null; S.subRenaming = null; renderView(); break;
+    case "up": case "down": { const j = act === "up" ? i - 1 : i + 1; S.catOpen = null; S.renaming = null; mutateCats(c => { const l = c[t]; if (j < 0 || j >= l.length) return false; [l[i], l[j]] = [l[j], l[i]]; }); break; }
+    case "catOpen": { const k = t + ":" + i; S.catOpen = S.catOpen === k ? null : k; S.renaming = S.catOpen; S.subRenaming = null; renderView(); break; }
+    case "catClose": S.catOpen = null; S.renaming = null; S.subRenaming = null; renderView(); break;
+    case "addSub": {
+      const cat = S.cats[t][i], name = (($("#newSub") || {}).value || "").trim();
+      if (!name) return toast("小分類名を入力してください");
+      if (subsOf(t, cat).includes(name)) return toast("同じ名前の小分類がすでにあります");
+      const cur = subsOf(t, cat).slice();
+      mutateCats(c => { c.sub[t][cat] = (c.sub[t][cat] || cur); c.sub[t][cat].push(name); }).then(() => { toast("「" + name + "」を追加しました"); const n = $("#newSub"); if (n) n.focus(); }); break;
+    }
+    case "subUp": case "subDown": {
+      const cat = S.cats[t][i], j = Number(b.dataset.j), k2 = act === "subUp" ? j - 1 : j + 1, cur = subsOf(t, cat).slice();
+      mutateCats(c => { const l = c.sub[t][cat] = (c.sub[t][cat] || cur); if (k2 < 0 || k2 >= l.length) return false; [l[j], l[k2]] = [l[k2], l[j]]; }); break;
+    }
+    case "delSub": {
+      const cat = S.cats[t][i], j = Number(b.dataset.j), sk = "sub:" + t + ":" + i + ":" + j, cur = subsOf(t, cat).slice(), name = cur[j];
+      if (S.armed !== sk) { S.armed = sk; renderView(); break; }
+      S.armed = null; mutateCats(c => { const l = c.sub[t][cat] = (c.sub[t][cat] || cur); l.splice(j, 1); }).then(() => toast("「" + name + "」を削除しました")); break;
+    }
+    case "subRename": S.subRenaming = Number(b.dataset.j); renderView(); { const r = $("#subRenameInput"); if (r) { r.focus(); r.select(); } } break;
+    case "subRenameCancel": S.subRenaming = null; renderView(); break;
+    case "subRenameSave": renameSub(i, Number(b.dataset.j)); break;
     case "delCat": {
       const k = t + ":" + i;
       if (S.armed !== k) { S.armed = k; renderView(); break; }
-      S.armed = null; const name = S.cats[t][i];
-      mutateCats(c => { c[t].splice(i, 1); }).then(() => toast("「" + name + "」を削除しました")); break;
+      S.armed = null; const name = S.cats[t][i]; S.catOpen = null; S.renaming = null;
+      mutateCats(c => { c[t].splice(i, 1); delete c.sub[t][name]; }).then(() => toast("「" + name + "」を削除しました")); break;
     }
     case "addCat": {
       const inp = $("#newCat"), name = (inp.value || "").trim();
@@ -847,8 +968,8 @@ document.addEventListener("click", ev => {
     case "restoreCancel": S.restore = null; renderView(); break;
     case "restoreDo": doRestore(); break;
     case "recNew": S.recForm = blankRec(); renderView(); break;
-    case "recEdit": { const r = S.rec.find(x => x.id === b.dataset.id); if (!r) return; S.recForm = { id: r.id, t: r.t, c: r.c, a: String(r.a), day: r.day, m: r.m || "", now: false }; renderView(); break; }
-    case "recType": S.recForm.t = b.dataset.t; S.recForm.c = ""; renderView(); break;
+    case "recEdit": { const r = S.rec.find(x => x.id === b.dataset.id); if (!r) return; S.recForm = { id: r.id, t: r.t, c: r.c, s: r.s || "", a: String(r.a), day: r.day, m: r.m || "", now: false }; renderView(); break; }
+    case "recType": S.recForm.t = b.dataset.t; S.recForm.c = ""; S.recForm.s = ""; renderView(); break;
     case "recCancel": S.recForm = null; renderView(); break;
     case "recSave": saveRec(); break;
     case "recDel": {
@@ -875,7 +996,8 @@ document.addEventListener("change", ev => {
   const el = ev.target;
   if (el.id === "restoreFile") { if (el.files && el.files[0]) readBackup(el.files[0]); el.value = ""; return; }
   if (!S.recForm) return;
-  if (el.id === "rCat") S.recForm.c = el.value;
+  if (el.id === "rCat") { S.recForm.c = el.value; S.recForm.s = ""; renderView(); }
+  else if (el.id === "rSub") S.recForm.s = el.value;
   else if (el.id === "rDay") S.recForm.day = Number(el.value);
   else if (el.id === "rNow") S.recForm.now = el.checked;
 });
@@ -883,6 +1005,8 @@ document.addEventListener("keydown", ev => {
   if (ev.key !== "Enter") return;
   if (ev.target.id === "newCat") { ev.preventDefault(); document.querySelector('[data-act="addCat"]').click(); }
   if (ev.target.id === "renameInput") { ev.preventDefault(); document.querySelector('[data-act="renameSave"]').click(); }
+  if (ev.target.id === "newSub") { ev.preventDefault(); document.querySelector('[data-act="addSub"]').click(); }
+  if (ev.target.id === "subRenameInput") { ev.preventDefault(); document.querySelector('[data-act="subRenameSave"]').click(); }
 });
 $("#prevM").addEventListener("click", () => { S.ym = shiftYM(S.ym, -1); S.copyText = null; watchMonth(); renderAll(); });
 $("#nextM").addEventListener("click", () => { S.ym = shiftYM(S.ym, 1); S.copyText = null; watchMonth(); renderAll(); });
