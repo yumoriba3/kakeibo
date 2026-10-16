@@ -55,7 +55,10 @@ button{cursor:pointer}
 .top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--surface);border-bottom:1px solid var(--line)}
 .top .wrap{padding-block:10px 12px;display:grid;gap:10px}
 .bar{display:flex;align-items:center;justify-content:space-between;gap:8px}
-.brand{font-size:12px;letter-spacing:.14em;color:var(--muted);font-weight:500}
+.brand{font-size:12px;letter-spacing:.14em;color:var(--muted);font-weight:500;display:flex;align-items:center;gap:8px}
+.syncdot{letter-spacing:.04em;font-size:10.5px;font-weight:500;padding:1px 7px;border-radius:999px;background:var(--accent-soft);color:var(--accent)}
+.syncdot.warn{background:var(--warn-soft);color:var(--exp)}
+.linkline{font-size:12.5px;color:var(--accent)}
 .mnav{display:flex;align-items:center;gap:4px}
 .mnav button{width:36px;height:36px;border:0;background:transparent;border-radius:50%;color:var(--accent);font-size:20px;line-height:1}
 .mnav button:active{background:var(--accent-soft)}
@@ -178,7 +181,7 @@ textarea.copy{width:100%;height:140px;font-family:var(--font-num);font-size:12px
 <header class="top">
   <div class="wrap">
     <div class="bar">
-      <span class="brand">MY CASHBOOK</span>
+      <span class="brand">MY CASHBOOK <span id="syncDot" class="syncdot" hidden></span></span>
       <div class="mnav">
         <button id="prevM" aria-label="前の月">‹</button>
         <span class="mlabel" id="mlabel"></span>
@@ -209,7 +212,7 @@ const DEFAULT_CATS = {
 };
 const PALETTE = ["#4F7FD6","#7DB547","#D9A441","#5BA7B5","#D0675C","#8A6FD1","#4DA57A","#C9B83C","#D17CA6","#6E8BA8","#E08A4A","#3E9C9C"];
 const TYPE_LABEL = {exp:"支出", inc:"収入"};
-const APP_VERSION = "2026.10.16-0936"; // 独立版のビルド時に日時が入る
+const APP_VERSION = "2026.10.16-0956"; // 独立版のビルド時に日時が入る
 
 /* ---------- utils ---------- */
 const $ = s => document.querySelector(s);
@@ -458,6 +461,97 @@ async function saveRec(){
     S.recForm = null; renderView();
   } catch (err) { toast(errMsg(err)); }
 }
+/* ---------- Googleスプレッドシート連携（独立版のみ） ---------- */
+const SYNC_KEY = "cashbook:sync";
+const SETUP_URL = "https://github.com/yumoriba3/kakeibo/blob/main/SETUP_GOOGLE.md";
+function syncCfg(){ try { return JSON.parse(localStorage.getItem(SYNC_KEY)) || {}; } catch (e) { return {}; } }
+function setSyncCfg(c){ try { localStorage.setItem(SYNC_KEY, JSON.stringify(c)); } catch (e) {} }
+const fmtTime = t => { const d = new Date(t); return (d.getMonth() + 1) + "/" + d.getDate() + " " + pad(d.getHours()) + ":" + pad(d.getMinutes()); };
+async function callSheet(cfg, body){
+  let res;
+  try { res = await fetch(cfg.url, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(Object.assign({ token: cfg.token }, body)) }); }
+  catch (e) { throw new Error("network"); }
+  let j; try { j = await res.json(); } catch (e) { throw new Error("response"); }
+  if (!j.ok) throw new Error(j.error || "error");
+  return j;
+}
+function syncErrText(code){
+  return code === "token" ? "合言葉がスプレッドシート側と一致しません"
+    : code === "token_not_set" ? "スプレッドシート側のプログラムで合言葉が設定されていません"
+    : code === "response" ? "URLが正しくないか、デプロイの「アクセスできるユーザー」が「全員」になっていません"
+    : code === "network" ? "通信できませんでした。電波の良い所で開くと自動で再送します"
+    : "保存できませんでした（" + code + "）";
+}
+let syncTimer = null, syncing = false;
+function markDirty(){
+  const c = syncCfg(); if (!c.url) return;
+  c.rev = (c.rev || 0) + 1; c.dirty = true; setSyncCfg(c); renderSyncStatus();
+  clearTimeout(syncTimer); syncTimer = setTimeout(() => syncNow(false), 2500);
+}
+async function syncNow(manual){
+  const c = syncCfg(); if (!c.url || syncing) return;
+  if (!c.dirty && !manual) return;
+  syncing = true; renderSyncStatus();
+  const rev = c.rev || 0;
+  try {
+    await callSheet(c, { action: "save", data: await backupText() });
+    const n = syncCfg(); n.lastOk = Date.now(); n.lastErr = ""; if ((n.rev || 0) === rev) n.dirty = false; setSyncCfg(n);
+    if (manual) toast("スプレッドシートに保存しました");
+    if (n.dirty) { clearTimeout(syncTimer); syncTimer = setTimeout(() => syncNow(false), 1500); }
+  } catch (e) {
+    const n = syncCfg(); n.lastErr = syncErrText(e.message); setSyncCfg(n);
+    if (manual) toast(n.lastErr);
+  } finally { syncing = false; renderSyncStatus(); }
+}
+function renderSyncStatus(){
+  const c = syncCfg(), dot = $("#syncDot");
+  if (dot) {
+    dot.hidden = !c.url;
+    dot.className = "syncdot" + (c.lastErr ? " warn" : "");
+    dot.textContent = syncing ? "保存中…" : c.lastErr ? "未保存あり" : c.dirty ? "保存待ち" : "Google保存済";
+  }
+  const box = $("#syncState");
+  if (box) box.innerHTML = syncStateHtml(c);
+}
+function syncStateHtml(c){
+  return '<div class="status' + (c.lastErr ? " local" : "") + '"><i></i><span>' +
+    (syncing ? "保存しています…" : c.lastErr ? esc(c.lastErr) : c.lastOk ? "最後に保存した日時：" + fmtTime(c.lastOk) + (c.dirty ? "（このあと保存します）" : "") : "まだ保存していません") + '</span></div>';
+}
+function viewSync(){
+  const c = syncCfg();
+  if (c.url) return '<section class="card"><h2>Googleスプレッドシート連携</h2>' +
+    '<p class="note">記帳や設定を変えるたびに、Googleスプレッドシートへ自動で保存します。パソコンではスプレッドシートの「明細」「月別集計」シートで確認できます。</p>' +
+    '<div id="syncState">' + syncStateHtml(c) + '</div>' +
+    '<div class="btns two"><button class="btn ghost" data-act="syncNow">今すぐ保存</button><button class="btn ghost" data-act="syncLoad">Googleから復元</button></div>' +
+    '<button class="btn danger" data-act="syncOff">' + (S.armed === "sync" ? "もう一度押すと連携を解除します" : "連携を解除") + '</button>' +
+    '<p class="note">解除しても、スプレッドシートとこのiPhoneのデータはどちらも残ります。</p></section>';
+  return '<section class="card"><h2>Googleスプレッドシート連携</h2>' +
+    '<p class="note">ご自身のGoogleスプレッドシートに自動で保存します。iPhoneのデータが消えても復元でき、パソコンでもそのまま見られます。最初にパソコンでの準備が必要です。</p>' +
+    '<a class="linkline" href="' + SETUP_URL + '" target="_blank" rel="noopener">準備の手順を見る →</a>' +
+    '<label class="f">ウェブアプリのURL<input class="field" id="gUrl" inputmode="url" autocomplete="off" autocapitalize="off" placeholder="https://script.google.com/macros/s/…/exec" value="' + esc(S.gUrl || "") + '"></label>' +
+    '<label class="f">合言葉<input class="field" id="gToken" autocomplete="off" autocapitalize="off" placeholder="スプレッドシート側に設定したもの" value="' + esc(S.gToken || "") + '"></label>' +
+    '<button class="btn" data-act="syncConnect">接続して保存を始める</button></section>';
+}
+async function syncConnect(){
+  const url = (S.gUrl || "").trim(), token = (S.gToken || "").trim();
+  if (!/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec$/.test(url)) return toast("URLは https://script.google.com/macros/s/…/exec の形で入力してください");
+  if (!token) return toast("合言葉を入力してください");
+  toast("接続しています…");
+  try { await callSheet({ url, token }, { action: "ping" }); }
+  catch (e) { return toast(syncErrText(e.message)); }
+  setSyncCfg({ url, token, dirty: false, rev: 0 });
+  S.gUrl = S.gToken = ""; renderView(); renderSyncStatus();
+  // スプレッドシートにすでにデータがあれば、上書きする前にどちらを残すか選んでもらう
+  let existing = "";
+  try { existing = (await callSheet({ url, token }, { action: "load" })).data || ""; } catch (e) { existing = ""; }
+  if (existing && parseBackup(existing, true)) { toast("スプレッドシートに保存済みのデータがあります。どちらを残すか選んでください"); return; }
+  markDirty(); await syncNow(true);
+}
+async function syncLoad(){
+  const c = syncCfg(); toast("Googleから読み込んでいます…");
+  try { const j = await callSheet(c, { action: "load" }); if (!j.data) return toast("スプレッドシートにまだ保存されたデータがありません"); parseBackup(j.data); }
+  catch (e) { toast(syncErrText(e.message)); }
+}
 function viewSettings(){
   const t = S.setType, list = S.cats[t] || [];
   const rows = list.map((c, i) => {
@@ -469,7 +563,14 @@ function viewSettings(){
       '<button class="del' + (S.armed === k ? " armed" : "") + '" data-act="delCat" data-i="' + i + '" aria-label="削除">' + (S.armed === k ? "削除する" : "×") + '</button></span></div>';
   }).join("");
   const local = S.store.mode === "local";
-  return viewRecurring() + '<section class="card"><h2>項目の管理</h2>' +
+  const restoreCard = S.restore
+    ? '<section class="card" id="restoreCard"><h2>復元の確認</h2><p class="note" style="color:var(--ink)">' + (S.restore.months.length ? ymLabel(S.restore.months[0]) + '〜' + ymLabel(S.restore.months[S.restore.months.length - 1]) + 'の明細 ' + S.restore.count + '件' : '明細なし') + 'を復元します。同じ月のデータと設定は、復元する内容に置き換わります。</p>' +
+      (S.restore.fromSync
+        ? '<p class="note">スプレッドシートに保存されているデータです' + (S.restore.at ? '（' + fmtTime(S.restore.at) + '保存）' : '') + '。機種変更やデータが消えたあとなら「復元する」を選んでください。</p>' +
+          '<div class="btns"><button class="btn" data-act="restoreDo">スプレッドシートから復元する</button><button class="btn ghost" data-act="syncOverwrite">復元せず、このiPhoneの内容で上書きする</button></div></section>'
+        : '<div class="btns two"><button class="btn ghost" data-act="restoreCancel">やめる</button><button class="btn" data-act="restoreDo">復元する</button></div></section>')
+    : '';
+  return restoreCard + (S.store.mode === "local" ? viewSync() : '') + viewRecurring() + '<section class="card"><h2>項目の管理</h2>' +
     '<div class="seg" role="group"><button data-act="setType" data-t="exp" aria-pressed="' + (t === "exp") + '">支出の項目</button><button data-act="setType" data-t="inc" aria-pressed="' + (t === "inc") + '">収入の項目</button></div>' +
     '<div>' + rows + '</div>' +
     '<div class="addrow"><input class="field" id="newCat" placeholder="新しい項目名" aria-label="新しい項目名"><button class="btn" data-act="addCat">追加</button></div>' +
@@ -481,13 +582,10 @@ function viewSettings(){
       : '<p class="note">メモを入れて記帳すると、ここに候補として登録されます。</p>') +
     '<p class="note">使わなくなった候補は × で外せます。記帳済みの明細には影響しません。</p></section>' +
     '<section class="card"><h2>データの保存先</h2><div class="status' + (local ? " local" : "") + '"><i></i><span>' +
-    (local ? "このiPhoneの中に保存しています。Safariの履歴やWebサイトデータを消去すると失われるため、月に一度はバックアップを保存してください。" : "claude.ai のクラウドに保存しています。iPhoneとPCのどちらからでも同じデータを使えます。") + '</span></div>' + (APP_VERSION ? '<p class="note num">バージョン ' + APP_VERSION + '</p>' : '') + '</section>' +
+    (local ? (syncCfg().url ? "このiPhoneの中に保存し、変更のたびにGoogleスプレッドシートにも自動で保存しています。" : "このiPhoneの中に保存しています。Safariの履歴やWebサイトデータを消去すると失われるおそれがあるため、Googleスプレッドシート連携か、月に一度のバックアップをおすすめします。") : "claude.ai のクラウドに保存しています。iPhoneとPCのどちらからでも同じデータを使えます。") + '</span></div>' + (APP_VERSION ? '<p class="note num">バージョン ' + APP_VERSION + '</p>' : '') + '</section>' +
     '<section class="card"><h2>バックアップと引き継ぎ</h2>' +
     '<p class="note">すべての明細・項目・候補・定期登録を1つのファイルに保存します。機種変更や、別の版へデータを移すときに使います。</p>' +
-    (S.restore
-      ? '<div class="recform"><p class="note" style="color:var(--ink)">' + (S.restore.months.length ? ymLabel(S.restore.months[0]) + '〜' + ymLabel(S.restore.months[S.restore.months.length - 1]) + 'の明細 ' + S.restore.count + '件' : '明細なし') + 'を復元します。同じ月のデータと設定は、バックアップの内容に置き換わります。</p>' +
-        '<div class="btns two"><button class="btn ghost" data-act="restoreCancel">やめる</button><button class="btn" data-act="restoreDo">復元する</button></div></div>'
-      : '<div class="btns"><button class="btn" data-act="backup">バックアップを保存</button>' +
+    ('<div class="btns"><button class="btn" data-act="backup">バックアップを保存</button>' +
         '<label class="btn ghost filebtn" for="restoreFile">ファイルから復元<input type="file" id="restoreFile"></label></div>' +
         '<h2 style="margin-top:6px">ファイルが使えないとき</h2>' +
         '<p class="note">保存したい側で「バックアップをコピー」、移したい側で「貼り付けて復元」を使います。</p>' +
@@ -602,7 +700,7 @@ function copyBackup(){
   const fallback = () => { if (box) { box.focus(); box.select(); } toast("下の文字を長押しして「すべてを選択」→「コピー」してください"); };
   try { navigator.clipboard.writeText(text).then(() => toast("コピーしました。独立版の「貼り付けて復元」に貼り付けてください"), fallback); } catch (e) { fallback(); }
 }
-function parseBackup(text){
+function parseBackup(text, fromSync){
   try {
     const data = JSON.parse(String(text).trim().replace(/^\uFEFF/, ""));
     if (!data || data.app !== "my-cashbook" || !data.docs) throw 0;
@@ -610,8 +708,9 @@ function parseBackup(text){
     Object.keys(data.docs).forEach(k => { if (BACKUP_PATH.test(k) && data.docs[k] && typeof data.docs[k] === "object") docs[k] = data.docs[k]; });
     const months = Object.keys(docs).filter(k => k.startsWith("months/")).map(k => k.slice(7)).sort();
     const count = months.reduce((n, ym) => n + ((docs["months/" + ym].entries || []).length), 0);
-    S.restore = { docs, months, count, at: data.exportedAt || "" }; S.pasting = false; renderView();
-  } catch (e) { toast("出納帳のバックアップとして読み取れませんでした。全文がそろっているか確認してください"); }
+    S.restore = { docs, months, count, at: data.exportedAt || "", fromSync: !!fromSync }; S.pasting = false; S.tab = "settings"; renderTabs(); renderView(); window.scrollTo(0, 0);
+    return true;
+  } catch (e) { if (!fromSync) toast("出納帳のバックアップとして読み取れませんでした。全文がそろっているか確認してください"); return false; }
 }
 function readBackup(file){
   const r = new FileReader();
@@ -677,7 +776,7 @@ document.addEventListener("click", ev => {
   const b = ev.target.closest("[data-act]"); if (!b) return;
   const act = b.dataset.act, i = Number(b.dataset.i);
   const t = S.setType;
-  if (act !== "delCat" && act !== "delEntry" && act !== "recDel") S.armed = null;
+  if (act !== "delCat" && act !== "delEntry" && act !== "recDel" && act !== "syncOff") S.armed = null;
   switch (act) {
     case "type": S.form.t = b.dataset.t; S.form.c = ""; renderView(); break;
     case "cat": S.form.c = b.dataset.c; document.querySelectorAll(".chip").forEach(x => x.setAttribute("aria-pressed", x === b)); renderSugs(); break;
@@ -712,6 +811,14 @@ document.addEventListener("click", ev => {
     case "renameCancel": S.renaming = null; renderView(); break;
     case "renameSave": renameCat(i); break;
     case "backup": exportBackup(); break;
+    case "syncConnect": syncConnect(); break;
+    case "syncNow": syncNow(true); break;
+    case "syncOverwrite": S.restore = null; renderView(); markDirty(); syncNow(true); break;
+    case "syncLoad": syncLoad(); break;
+    case "syncOff": {
+      if (S.armed !== "sync") { S.armed = "sync"; renderView(); break; }
+      S.armed = null; setSyncCfg({}); renderSyncStatus(); renderView(); toast("連携を解除しました"); break;
+    }
     case "prepCopy": prepareCopy(); break;
     case "copyBackup": copyBackup(); break;
     case "pasteOpen": S.pasting = true; S.backupCopy = null; renderView(); { const t = $("#pasteBox"); if (t) t.focus(); } break;
@@ -737,6 +844,8 @@ document.addEventListener("input", ev => {
   if (el.id === "fAmount") { const digits = el.value.replace(/[^\d０-９]/g, "").replace(/[０-９]/g, d => String.fromCharCode(d.charCodeAt(0) - 0xFEE0)).replace(/^0+/, "").slice(0, 10); S.form.a = digits; el.value = digits ? Number(digits).toLocaleString("ja-JP") : ""; }
   else if (el.id === "rAmount") { const digits = el.value.replace(/[^\d０-９]/g, "").replace(/[０-９]/g, d => String.fromCharCode(d.charCodeAt(0) - 0xFEE0)).replace(/^0+/, "").slice(0, 10); S.recForm.a = digits; el.value = digits ? Number(digits).toLocaleString("ja-JP") : ""; }
   else if (el.id === "rMemo") S.recForm.m = el.value;
+  else if (el.id === "gUrl") S.gUrl = el.value;
+  else if (el.id === "gToken") S.gToken = el.value;
   else if (el.id === "fMemo") { S.form.m = el.value; renderSugs(); }
   else if (el.id === "fDate") { S.form.d = el.value; renderDayList(); }
 });
@@ -761,7 +870,15 @@ async function boot(){
   let db = null;
   try { db = window.claude && window.claude.use ? await window.claude.use("db") : null; } catch (e) { db = null; }
   S.store = db ? dbStore(db) : localStore();
-  if (!db && navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+  if (!db) {
+    if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+    const baseMutate = S.store.mutate;
+    S.store.mutate = async (p, fn) => { const r = await baseMutate(p, fn); if (r) markDirty(); return r; };
+    renderSyncStatus();
+    setTimeout(() => syncNow(false), 1500);
+    window.addEventListener("online", () => syncNow(false));
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) syncNow(false); });
+  }
   S.store.watch("settings/categories", body => { S.cats = body && body.exp ? body : clone(DEFAULT_CATS); if (S.tab === "input" || S.tab === "settings") renderView(); });
   S.store.watch("settings/index", body => { S.months = (body && body.months) || []; });
   S.store.watch("settings/memos", body => { S.memos = (body && body.items) || []; if (S.tab === "input") renderSugs(); else if (S.tab === "settings" && !S.renaming) renderView(); });
