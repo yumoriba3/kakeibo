@@ -123,6 +123,18 @@ button.brow:disabled{cursor:default;opacity:1}
 .catpanel .addrow .btn{padding:9px 12px;font-size:14px}
 .cat.sub{grid-template-columns:6px minmax(0,1fr) auto}
 .cat.sub i{width:6px;height:6px;background:var(--line)}
+.calcard{padding:12px 8px}
+.cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border-top:1px solid var(--line);border-left:1px solid var(--line)}
+.cal .wd{font-size:11px;text-align:center;padding:6px 0;color:var(--muted);background:var(--bg);border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
+.cal .wd.sun{color:var(--exp)} .cal .wd.sat{color:var(--accent)}
+.cday{min-height:62px;border:0;border-right:1px solid var(--line);border-bottom:1px solid var(--line);background:var(--surface);padding:4px 1px;display:flex;flex-direction:column;align-items:center;gap:1px;font:inherit;color:var(--ink);min-width:0;overflow:hidden}
+.cday.blank{background:var(--bg)}
+.cday .n{font-size:12px;width:22px;height:22px;line-height:22px;text-align:center;border-radius:50%}
+.cday.sun .n{color:var(--exp)} .cday.sat .n{color:var(--accent)}
+.cday.today .n{background:var(--ink);color:var(--surface);font-weight:700}
+.cday[aria-pressed="true"]{background:var(--accent-soft)}
+.cday .e{font-size:10.5px;letter-spacing:-.03em;line-height:1.3;max-width:100%;overflow:hidden;text-overflow:clip;white-space:nowrap}
+.cday .e.i{color:var(--inc)}
 .btn{border:0;border-radius:12px;padding:13px 16px;font-weight:700;background:var(--accent);color:var(--accent-ink);font-size:16px}
 .btn:active{opacity:.85}
 .btn.ghost{background:transparent;color:var(--accent);border:1px solid var(--line)}
@@ -252,7 +264,7 @@ const TYPE_LABEL = {exp:"支出", inc:"収入"};
 const NO_SUB = "（小分類なし）";
 /* 小分類の一覧。保存データに小分類がまだ無いときは初期値を使う */
 function subsOf(t, c){ const sub = S.cats && S.cats.sub ? S.cats.sub : DEFAULT_SUB; return ((sub[t] || {})[c]) || []; }
-const APP_VERSION = "2026.10.16-1146"; // 独立版のビルド時に日時が入る
+const APP_VERSION = "2026.10.16-1150"; // 独立版のビルド時に日時が入る
 
 /* ---------- utils ---------- */
 const $ = s => document.querySelector(s);
@@ -304,7 +316,7 @@ function localStore(){
 /* ---------- state ---------- */
 const S = {
   store: null, tab: "input", ym: todayStr().slice(0, 7),
-  cats: clone(DEFAULT_CATS), months: [], memos: [], rec: [], recForm: null, restore: null, backupCopy: null, pasting: false, catOpen: null, subRenaming: null, repOpen: {}, entries: [], loaded: false,
+  cats: clone(DEFAULT_CATS), months: [], memos: [], rec: [], recForm: null, restore: null, backupCopy: null, pasting: false, catOpen: null, subRenaming: null, repOpen: {}, listMode: loadListMode(), calDay: null, entries: [], loaded: false,
   form: null, setType: "exp", armed: null, renaming: null, copyText: null
 };
 function blankForm(keep){ return { id: null, origYm: null, d: (keep && keep.d) || todayStr(), t: (keep && keep.t) || "exp", c: "", s: "", a: "", m: "" }; }
@@ -398,11 +410,44 @@ function renderDayList(){
   box.innerHTML = list.length ? '<div class="day">' + list.map(entryRow).join("") + '</div>' : '<p class="empty">' + (S.loaded ? "この日の記帳はまだありません。" : "読み込み中です…") + '</p>';
 }
 
+/* 明細タブ：一覧 / カレンダーの切り替え（表示方法だけなので端末に覚えておく） */
+const LIST_MODE_KEY = "cashbook:listMode";
+function loadListMode(){ try { return localStorage.getItem(LIST_MODE_KEY) === "cal" ? "cal" : "list"; } catch (e) { return "list"; } }
+function listSeg(){
+  return '<div class="seg" role="group" aria-label="表示方法"><button data-act="listMode" data-m="list" aria-pressed="' + (S.listMode !== "cal") + '">一覧</button><button data-act="listMode" data-m="cal" aria-pressed="' + (S.listMode === "cal") + '">カレンダー</button></div>';
+}
+function viewCalendar(){
+  const [y, m] = S.ym.split("-").map(Number), first = new Date(y, m - 1, 1).getDay(), days = new Date(y, m, 0).getDate(), today = todayStr();
+  const byDay = {};
+  S.entries.forEach(e => { const d = byDay[e.d] = byDay[e.d] || { exp: 0, inc: 0, n: 0 }; d[e.t === "inc" ? "inc" : "exp"] += e.a; d.n++; });
+  if (S.calDay && S.calDay.slice(0, 7) !== S.ym) S.calDay = null;
+  const sel = S.calDay || (today.slice(0, 7) === S.ym ? today : null);
+  let cells = "";
+  for (let i = 0; i < first; i++) cells += '<div class="cday blank"></div>';
+  for (let dd = 1; dd <= days; dd++) {
+    const d = S.ym + "-" + pad(dd), t = byDay[d], wd = (first + dd - 1) % 7;
+    cells += '<button class="cday' + (d === today ? " today" : "") + (wd === 0 ? " sun" : wd === 6 ? " sat" : "") + '" data-act="calDay" data-d="' + d + '" aria-pressed="' + (d === sel) + '" aria-label="' + dayLabel(d) + (t ? " 支出" + t.exp + "円" + (t.inc ? " 収入" + t.inc + "円" : "") : " 記帳なし") + '">' +
+      '<span class="n">' + dd + '</span>' + (t && t.exp ? '<span class="e num">' + t.exp.toLocaleString("ja-JP") + '</span>' : '') + (t && t.inc ? '<span class="e i num">' + t.inc.toLocaleString("ja-JP") + '</span>' : '') + '</button>';
+  }
+  const rest = (7 - (first + days) % 7) % 7;
+  for (let i = 0; i < rest; i++) cells += '<div class="cday blank"></div>';
+  const head = ["日", "月", "火", "水", "木", "金", "土"].map((w, i) => '<div class="wd' + (i === 0 ? " sun" : i === 6 ? " sat" : "") + '">' + w + '</div>').join("");
+  let detail = "";
+  if (sel) {
+    const list = S.entries.filter(e => e.d === sel), t = totals(list);
+    detail = '<section class="card" style="gap:4px"><div class="dayhead"><span>' + dayLabel(sel) + '</span><span class="num">' + (list.length ? '支出 ' + yen(t.exp) + (t.inc ? '　収入 ' + yen(t.inc) : '') : '') + '</span></div>' +
+      (list.length ? '<div class="day">' + list.map(entryRow).join("") + '</div>' : '<p class="empty">この日の記帳はありません。</p>') +
+      '<button class="btn ghost" data-act="calAdd" data-d="' + sel + '">この日に記帳する</button></section>';
+  }
+  return listSeg() + '<section class="card calcard"><div class="cal" role="grid">' + head + cells + '</div>' +
+    '<p class="note">上段が支出、緑の数字が収入です。日付を押すと、その日の明細を表示します。</p></section>' + detail;
+}
 function viewList(){
-  if (!S.entries.length) return '<section class="card"><p class="empty">' + (S.loaded ? ymLabel(S.ym) + "の明細はまだありません。<br>「入力」タブから記帳してください。" : "読み込み中です…") + '</p></section>';
+  if (S.listMode === "cal") return viewCalendar();
+  if (!S.entries.length) return listSeg() + '<section class="card"><p class="empty">' + (S.loaded ? ymLabel(S.ym) + "の明細はまだありません。<br>「入力」タブから記帳してください。" : "読み込み中です…") + '</p></section>';
   const byDay = {};
   S.entries.forEach(e => (byDay[e.d] = byDay[e.d] || []).push(e));
-  return Object.keys(byDay).sort().reverse().map(d => {
+  return listSeg() + Object.keys(byDay).sort().reverse().map(d => {
     const t = totals(byDay[d]);
     return '<section class="card" style="gap:4px"><div class="dayhead"><span>' + dayLabel(d) + '</span><span class="num">支出 ' + yen(t.exp) + (t.inc ? '　収入 ' + yen(t.inc) : '') + '</span></div>' +
       '<div class="day">' + byDay[d].map(entryRow).join("") + '</div></section>';
@@ -912,6 +957,9 @@ document.addEventListener("click", ev => {
     case "delEntry": deleteEntry(); break;
     case "edit": { const e = S.entries.find(x => x.id === b.dataset.id); if (!e) return; S.form = { id: e.id, origYm: e.d.slice(0, 7), d: e.d, t: e.t, c: e.c, a: String(e.a), m: e.m || "", r: e.r || null, s: e.s || "" }; S.tab = "input"; renderTabs(); renderView(); window.scrollTo(0, 0); break; }
     case "xlsxMonth": exportMonth(); break;
+    case "listMode": S.listMode = b.dataset.m; try { localStorage.setItem(LIST_MODE_KEY, S.listMode); } catch (e) {} renderView(); break;
+    case "calDay": S.calDay = b.dataset.d; renderView(); break;
+    case "calAdd": S.form = blankForm(); S.form.d = b.dataset.d; S.tab = "input"; renderAll(); window.scrollTo(0, 0); break;
     case "repToggle": { const k = b.dataset.k; S.repOpen[k] = !S.repOpen[k]; renderView(); break; }
     case "xlsxYear": exportYear(); break;
     case "copyTsv": copyTsv(); break;
