@@ -147,6 +147,7 @@ button.brow:disabled{cursor:default;opacity:1}
 .ytbl tr.cur th{color:var(--accent)}
 .ybar{height:3px;background:var(--bg);border-radius:2px;margin-top:4px;overflow:hidden}
 .ybar i{display:block;height:100%;background:var(--exp);opacity:.55}
+#recCard{scroll-margin-top:calc(110px + env(safe-area-inset-top,0px))}
 .btn{border:0;border-radius:12px;padding:13px 16px;font-weight:700;background:var(--accent);color:var(--accent-ink);font-size:16px}
 .btn:active{opacity:.85}
 .btn.ghost{background:transparent;color:var(--accent);border:1px solid var(--line)}
@@ -276,7 +277,7 @@ const TYPE_LABEL = {exp:"支出", inc:"収入"};
 const NO_SUB = "（小分類なし）";
 /* 小分類の一覧。保存データに小分類がまだ無いときは初期値を使う */
 function subsOf(t, c){ const sub = S.cats && S.cats.sub ? S.cats.sub : DEFAULT_SUB; return ((sub[t] || {})[c]) || []; }
-const APP_VERSION = "2026.10.16-1302"; // 独立版のビルド時に日時が入る
+const APP_VERSION = "2026.10.16-1309"; // 独立版のビルド時に日時が入る
 
 /* ---------- utils ---------- */
 const $ = s => document.querySelector(s);
@@ -375,6 +376,7 @@ function viewInput(){
     '<div id="subBox"></div>' +
     (editing
       ? '<div class="btns two"><button class="btn ghost" data-act="cancel">キャンセル</button><button class="btn" data-act="save">更新する</button></div>' +
+        (f.r ? '' : '<button class="btn ghost" data-act="toRec">この明細を毎月の定期に登録</button>') +
         '<button class="btn danger" data-act="delEntry">' + (S.armed === "entry" ? "もう一度押すと削除します" : "この明細を削除") + '</button>'
       : '<button class="btn" data-act="save">保存する</button>') +
     '</section>' +
@@ -534,7 +536,7 @@ function viewReport(){
 /* ---------- 毎月の定期支払い・収入 ---------- */
 const dayText = d => d >= 31 ? "月末" : d + "日";
 function recDate(ym, day){ const [y, m] = ym.split("-").map(Number); return ym + "-" + pad(Math.min(day, new Date(y, m, 0).getDate())); }
-function blankRec(){ return { id: null, t: "exp", c: "", s: "", a: "", day: 27, m: "", now: false }; }
+function blankRec(){ return { id: null, t: "exp", c: "", s: "", a: "", day: 1, m: "", now: false }; }
 function viewRecurring(){
   const rf = S.recForm, cur = todayStr().slice(0, 7);
   const rows = S.rec.map(r =>
@@ -558,7 +560,8 @@ function viewRecurring(){
       (rf.id ? '<button class="btn danger" data-act="recDel">' + (S.armed === "rec" ? "もう一度押すと登録を解除します" : "この定期登録を解除") + '</button>' : '') +
       '</div>';
   }
-  return '<section class="card"><h2>毎月の定期支払い・収入</h2>' +
+  return '<section class="card" id="recCard"><h2>毎月の定期支払い・収入</h2>' +
+    (rf && rf.fromEntry ? '<p class="note" style="color:var(--ink)">選んだ明細の内容を入れました。金額や日付を確認して「登録する」を押すと、来月から毎月自動で記帳します。</p>' : '') +
     (S.rec.length ? '<div>' + rows + '</div>' : (rf ? '' : '<p class="note">家賃や通信費、積立など毎月決まった支払いを登録すると、新しい月になったときに自動で記帳します。</p>')) +
     (rf ? form : '<button class="btn ghost" data-act="recNew">＋ 定期の支払い・収入を登録</button>') +
     '</section>';
@@ -1067,6 +1070,14 @@ document.addEventListener("click", ev => {
     case "restoreCancel": S.restore = null; renderView(); break;
     case "restoreDo": doRestore(); break;
     case "recNew": S.recForm = blankRec(); renderView(); break;
+    case "toRec": {
+      const f = S.form, a = parseInt(f.a, 10), dd = Number(f.d.slice(8));
+      if (!f.c) return toast("項目を選んでから登録してください");
+      S.recForm = { id: null, t: f.t, c: f.c, s: f.s || "", a: a ? String(a) : "", day: dd > 28 ? 31 : dd, m: (f.m || "").trim(), now: false, fromEntry: true };
+      S.form = blankForm(); S.armed = null; S.tab = "settings"; renderTabs(); renderView();
+      { const el = $("#recCard"); if (el) el.scrollIntoView({ block: "start" }); }
+      break;
+    }
     case "recEdit": { const r = S.rec.find(x => x.id === b.dataset.id); if (!r) return; S.recForm = { id: r.id, t: r.t, c: r.c, s: r.s || "", a: String(r.a), day: r.day, m: r.m || "", now: false }; renderView(); break; }
     case "recType": S.recForm.t = b.dataset.t; S.recForm.c = ""; S.recForm.s = ""; renderView(); break;
     case "recCancel": S.recForm = null; renderView(); break;
