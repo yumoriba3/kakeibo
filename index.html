@@ -55,14 +55,16 @@ button{cursor:pointer}
 .top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--surface);border-bottom:1px solid var(--line)}
 .top .wrap{padding-block:10px 12px;display:grid;gap:10px}
 .bar{display:flex;align-items:center;justify-content:space-between;gap:8px}
-.brand{font-size:12px;letter-spacing:.14em;color:var(--muted);font-weight:500;display:flex;align-items:center;gap:8px}
-.syncdot{letter-spacing:.04em;font-size:10.5px;font-weight:500;padding:1px 7px;border-radius:999px;background:var(--accent-soft);color:var(--accent)}
+.brand{font-size:12px;letter-spacing:.14em;color:var(--muted);font-weight:500;display:flex;align-items:center;gap:8px;white-space:nowrap;min-width:0}
+.syncdot{white-space:nowrap;letter-spacing:.04em;font-size:10.5px;font-weight:500;padding:1px 7px;border-radius:999px;background:var(--accent-soft);color:var(--accent)}
 .syncdot.warn{background:var(--warn-soft);color:var(--exp)}
 .linkline{font-size:12.5px;color:var(--accent)}
 .mnav{display:flex;align-items:center;gap:4px}
 .mnav button{width:36px;height:36px;border:0;background:transparent;border-radius:50%;color:var(--accent);font-size:20px;line-height:1}
 .mnav button:active{background:var(--accent-soft)}
 .mlabel{font-weight:700;font-size:17px;min-width:7.5em;text-align:center}
+.bname{overflow:hidden;text-overflow:ellipsis}
+@media (max-width:430px){.mlabel{min-width:6.2em}.brand{letter-spacing:.1em}}
 .sum{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .sum div{display:grid;gap:0;min-width:0}
 .sum span{font-size:11px;color:var(--muted);letter-spacing:.06em}
@@ -181,7 +183,7 @@ textarea.copy{width:100%;height:140px;font-family:var(--font-num);font-size:12px
 <header class="top">
   <div class="wrap">
     <div class="bar">
-      <span class="brand">MY CASHBOOK <span id="syncDot" class="syncdot" hidden></span></span>
+      <span class="brand"><span class="bname">MY CASHBOOK</span><span id="syncDot" class="syncdot" hidden></span></span>
       <div class="mnav">
         <button id="prevM" aria-label="前の月">‹</button>
         <span class="mlabel" id="mlabel"></span>
@@ -212,7 +214,7 @@ const DEFAULT_CATS = {
 };
 const PALETTE = ["#4F7FD6","#7DB547","#D9A441","#5BA7B5","#D0675C","#8A6FD1","#4DA57A","#C9B83C","#D17CA6","#6E8BA8","#E08A4A","#3E9C9C"];
 const TYPE_LABEL = {exp:"支出", inc:"収入"};
-const APP_VERSION = "2026.10.16-1030"; // 独立版のビルド時に日時が入る
+const APP_VERSION = "2026.10.16-1038"; // 独立版のビルド時に日時が入る
 
 /* ---------- utils ---------- */
 const $ = s => document.querySelector(s);
@@ -508,7 +510,8 @@ function renderSyncStatus(){
   if (dot) {
     dot.hidden = !c.url;
     dot.className = "syncdot" + (c.lastErr ? " warn" : "");
-    dot.textContent = syncing ? "保存中…" : c.lastErr ? "未保存あり" : c.dirty ? "保存待ち" : "Google保存済";
+    dot.textContent = syncing ? "保存中…" : c.lastErr ? "未保存" : c.dirty ? "保存待ち" : "保存済";
+    dot.title = "Googleスプレッドシートへの保存状態";
   }
   const box = $("#syncState");
   if (box) box.innerHTML = syncStateHtml(c);
@@ -523,6 +526,10 @@ function viewSync(){
     '<p class="note">記帳や設定を変えるたびに、Googleスプレッドシートへ自動で保存します。パソコンではスプレッドシートの「月別集計」「内訳」「明細」シートで確認できます。</p>' +
     '<div id="syncState">' + syncStateHtml(c) + '</div>' +
     '<div class="btns two"><button class="btn ghost" data-act="syncNow">今すぐ保存</button><button class="btn ghost" data-act="syncLoad">Googleから復元</button></div>' +
+    (S.tokenEdit
+      ? '<div class="recform"><label class="f">新しい合言葉（スプレッドシート側で変更・再デプロイしたもの）<input class="field" id="gNewToken" autocomplete="off" autocapitalize="off" value="' + esc(S.gNewToken || "") + '"></label>' +
+        '<div class="btns two"><button class="btn ghost" data-act="tokenCancel">取消</button><button class="btn" data-act="tokenSave">変更する</button></div></div>'
+      : '<button class="btn ghost" data-act="tokenEdit">合言葉を変更</button>') +
     '<button class="btn danger" data-act="syncOff">' + (S.armed === "sync" ? "もう一度押すと連携を解除します" : "連携を解除") + '</button>' +
     '<p class="note">解除しても、スプレッドシートとこのiPhoneのデータはどちらも残ります。</p></section>';
   return '<section class="card"><h2>Googleスプレッドシート連携</h2>' +
@@ -546,6 +553,16 @@ async function syncConnect(){
   try { existing = (await callSheet({ url, token }, { action: "load" })).data || ""; } catch (e) { existing = ""; }
   if (existing && parseBackup(existing, true)) { toast("スプレッドシートに保存済みのデータがあります。どちらを残すか選んでください"); return; }
   markDirty(); await syncNow(true);
+}
+async function changeToken(){
+  const c = syncCfg(), token = (S.gNewToken || "").trim();
+  if (!token) return toast("新しい合言葉を入力してください");
+  toast("確認しています…");
+  try { await callSheet({ url: c.url, token }, { action: "ping" }); }
+  catch (e) { return toast(e.message === "token" ? "スプレッドシート側の合言葉と一致しません。先にスプレッドシート側を変更し、新バージョンでデプロイしてください" : syncErrText(e.message)); }
+  const n = syncCfg(); n.token = token; n.lastErr = ""; setSyncCfg(n);
+  S.tokenEdit = false; S.gNewToken = ""; renderView(); renderSyncStatus();
+  toast("合言葉を変更しました"); markDirty();
 }
 async function syncLoad(){
   const c = syncCfg(); toast("Googleから読み込んでいます…");
@@ -772,7 +789,7 @@ function copyTsv(){
 /* ---------- events ---------- */
 document.addEventListener("click", ev => {
   const tabBtn = ev.target.closest(".tabs button");
-  if (tabBtn) { S.tab = tabBtn.dataset.tab; S.armed = null; S.renaming = null; S.copyText = null; S.recForm = null; S.restore = null; S.backupCopy = null; S.pasting = false; if (S.tab !== "input" && S.form.id) S.form = blankForm(); renderTabs(); renderView(); window.scrollTo(0, 0); return; }
+  if (tabBtn) { S.tab = tabBtn.dataset.tab; S.armed = null; S.renaming = null; S.copyText = null; S.recForm = null; S.restore = null; S.backupCopy = null; S.pasting = false; S.tokenEdit = false; if (S.tab !== "input" && S.form.id) S.form = blankForm(); renderTabs(); renderView(); window.scrollTo(0, 0); return; }
   const b = ev.target.closest("[data-act]"); if (!b) return;
   const act = b.dataset.act, i = Number(b.dataset.i);
   const t = S.setType;
@@ -813,6 +830,9 @@ document.addEventListener("click", ev => {
     case "backup": exportBackup(); break;
     case "syncConnect": syncConnect(); break;
     case "syncNow": syncNow(true); break;
+    case "tokenEdit": S.tokenEdit = true; renderView(); { const t = $("#gNewToken"); if (t) t.focus(); } break;
+    case "tokenCancel": S.tokenEdit = false; S.gNewToken = ""; renderView(); break;
+    case "tokenSave": changeToken(); break;
     case "syncOverwrite": S.restore = null; renderView(); markDirty(); syncNow(true); break;
     case "syncLoad": syncLoad(); break;
     case "syncOff": {
@@ -846,6 +866,7 @@ document.addEventListener("input", ev => {
   else if (el.id === "rMemo") S.recForm.m = el.value;
   else if (el.id === "gUrl") S.gUrl = el.value;
   else if (el.id === "gToken") S.gToken = el.value;
+  else if (el.id === "gNewToken") S.gNewToken = el.value;
   else if (el.id === "fMemo") { S.form.m = el.value; renderSugs(); }
   else if (el.id === "fDate") { S.form.d = el.value; renderDayList(); }
 });
