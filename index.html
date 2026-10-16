@@ -252,7 +252,7 @@ const TYPE_LABEL = {exp:"支出", inc:"収入"};
 const NO_SUB = "（小分類なし）";
 /* 小分類の一覧。保存データに小分類がまだ無いときは初期値を使う */
 function subsOf(t, c){ const sub = S.cats && S.cats.sub ? S.cats.sub : DEFAULT_SUB; return ((sub[t] || {})[c]) || []; }
-const APP_VERSION = "2026.10.16-1135"; // 独立版のビルド時に日時が入る
+const APP_VERSION = "2026.10.16-1146"; // 独立版のビルド時に日時が入る
 
 /* ---------- utils ---------- */
 const $ = s => document.querySelector(s);
@@ -565,8 +565,8 @@ function renderSyncStatus(){
   if (dot) {
     dot.hidden = !c.url;
     const old = c.lastOk && (c.scriptVer || 1) < SHEET_SCRIPT_VERSION;
-    dot.className = "syncdot" + (c.lastErr || old ? " warn" : "");
-    dot.textContent = syncing ? "保存中…" : c.lastErr ? "未保存" : c.dirty ? "保存待ち" : old ? "要更新" : "保存済";
+    dot.className = "syncdot" + (c.lastErr || old || (!c.lastOk && !c.dirty) ? " warn" : "");
+    dot.textContent = syncing ? "保存中…" : c.lastErr ? "未保存" : c.dirty ? "保存待ち" : !c.lastOk ? "未保存" : old ? "要更新" : "保存済";
     dot.title = "Googleスプレッドシートへの保存状態";
   }
   const box = $("#syncState");
@@ -575,7 +575,7 @@ function renderSyncStatus(){
 function syncStateHtml(c){
   const old = c.lastOk && (c.scriptVer || 1) < SHEET_SCRIPT_VERSION;
   return (old ? '<div class="status local"><i></i><span>スプレッドシート側のプログラムが古い版です。小分類などが反映されません。Apps Script を最新のものに貼り替え、「デプロイを管理」から新バージョンでデプロイしてから「今すぐ保存」を押してください。</span></div>' : '') + '<div class="status' + (c.lastErr ? " local" : "") + '"><i></i><span>' +
-    (syncing ? "保存しています…" : c.lastErr ? esc(c.lastErr) : c.lastOk ? "最後に保存した日時：" + fmtTime(c.lastOk) + (c.dirty ? "（このあと保存します）" : "") : "まだ保存していません") + '</span></div>';
+    (syncing ? "保存しています…" : c.lastErr ? esc(c.lastErr) : c.lastOk ? "最後に保存した日時：" + fmtTime(c.lastOk) + (c.dirty ? "（このあと保存します）" : "") : "まだ保存していません。「今すぐ保存」を押してください") + '</span></div>';
 }
 function viewSync(){
   const c = syncCfg();
