@@ -113,15 +113,58 @@ function save_(text) {
   summary.setFrozenColumns(1);
   summary.getRange(table.length + 2, 1).setValue("最終更新：" + Utilities.formatDate(new Date(), "Asia/Tokyo", "yyyy/MM/dd HH:mm"));
 
-  // 4) シートの並びを整える
+  // 4) 内訳シート（月 → 項目 → 日付・店・金額。新しい月が上）
+  const breakdown = writeBreakdown_(entries, cats);
+
+  // 5) シートの並びを整える
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   ss.setActiveSheet(summary); ss.moveActiveSheet(1);
-  ss.setActiveSheet(detail); ss.moveActiveSheet(2);
+  ss.setActiveSheet(breakdown); ss.moveActiveSheet(2);
+  ss.setActiveSheet(detail); ss.moveActiveSheet(3);
   ["シート1", "Sheet1"].forEach(function (n) {
     const s = ss.getSheetByName(n);
     if (s && s.getLastRow() === 0 && ss.getSheets().length > 1) ss.deleteSheet(s);
   });
   if (!raw.isSheetHidden()) raw.hideSheet();
+}
+
+/** 内訳シート：月ごと・項目ごとに、日付と店（メモ）と金額を並べる */
+function writeBreakdown_(entries, cats) {
+  const sh = sheet_("内訳");
+  sh.clear();
+  const byMonth = {};
+  entries.forEach(function (e) { const ym = e.d.slice(0, 7); (byMonth[ym] = byMonth[ym] || []).push(e); });
+  const months = Object.keys(byMonth).sort().reverse();
+  const rows = [["項目", "日付", "店・メモ", "金額"]];
+  const fmt = { month: [], cat: [], date: [] };
+  months.forEach(function (ym) {
+    const list = byMonth[ym];
+    rows.push([Number(ym.slice(0, 4)) + "年" + Number(ym.slice(5)) + "月", "", "", ""]); fmt.month.push(rows.length);
+    ["exp", "inc"].forEach(function (t) {
+      const order = (cats[t] || []).slice();
+      list.forEach(function (e) { if (e.t === t && order.indexOf(e.c) < 0) order.push(e.c); });
+      order.forEach(function (c) {
+        const items = list.filter(function (e) { return e.t === t && e.c === c; });
+        if (!items.length) return;
+        const total = items.reduce(function (a, e) { return a + e.a; }, 0);
+        rows.push([(t === "inc" ? "収入：" : "") + c + "（" + items.length + "件）", "", "", total]); fmt.cat.push(rows.length);
+        items.forEach(function (e) {
+          const p = e.d.split("-");
+          rows.push(["", new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2])), e.m || "（メモなし）", e.a]); fmt.date.push(rows.length);
+        });
+      });
+    });
+    rows.push(["", "", "", ""]);
+  });
+  sh.getRange(1, 1, rows.length, 4).setValues(rows);
+  sh.getRange(1, 1, 1, 4).setFontWeight("bold").setBackground("#E0EFF0");
+  if (rows.length > 1) sh.getRange(2, 4, rows.length - 1, 1).setNumberFormat("#,##0");
+  fmt.month.forEach(function (r) { sh.getRange(r, 1, 1, 4).setFontWeight("bold").setFontSize(12).setBackground("#16233A").setFontColor("#FFFFFF"); });
+  fmt.cat.forEach(function (r) { sh.getRange(r, 1, 1, 4).setFontWeight("bold").setBackground("#F2F4F6"); });
+  fmt.date.forEach(function (r) { sh.getRange(r, 2).setNumberFormat("m/d（ddd）"); });
+  sh.setFrozenRows(1);
+  sh.setColumnWidth(1, 200); sh.setColumnWidth(2, 110); sh.setColumnWidth(3, 260); sh.setColumnWidth(4, 110);
+  return sh;
 }
 
 /** 復元用：保存してある元データを返す */

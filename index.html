@@ -212,7 +212,7 @@ const DEFAULT_CATS = {
 };
 const PALETTE = ["#4F7FD6","#7DB547","#D9A441","#5BA7B5","#D0675C","#8A6FD1","#4DA57A","#C9B83C","#D17CA6","#6E8BA8","#E08A4A","#3E9C9C"];
 const TYPE_LABEL = {exp:"支出", inc:"収入"};
-const APP_VERSION = "2026.10.16-0956"; // 独立版のビルド時に日時が入る
+const APP_VERSION = "2026.10.16-1021"; // 独立版のビルド時に日時が入る
 
 /* ---------- utils ---------- */
 const $ = s => document.querySelector(s);
@@ -520,7 +520,7 @@ function syncStateHtml(c){
 function viewSync(){
   const c = syncCfg();
   if (c.url) return '<section class="card"><h2>Googleスプレッドシート連携</h2>' +
-    '<p class="note">記帳や設定を変えるたびに、Googleスプレッドシートへ自動で保存します。パソコンではスプレッドシートの「明細」「月別集計」シートで確認できます。</p>' +
+    '<p class="note">記帳や設定を変えるたびに、Googleスプレッドシートへ自動で保存します。パソコンではスプレッドシートの「月別集計」「内訳」「明細」シートで確認できます。</p>' +
     '<div id="syncState">' + syncStateHtml(c) + '</div>' +
     '<div class="btns two"><button class="btn ghost" data-act="syncNow">今すぐ保存</button><button class="btn ghost" data-act="syncLoad">Googleから復元</button></div>' +
     '<button class="btn danger" data-act="syncOff">' + (S.armed === "sync" ? "もう一度押すと連携を解除します" : "連携を解除") + '</button>' +
