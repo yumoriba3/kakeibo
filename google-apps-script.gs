@@ -6,6 +6,7 @@
 const TOKEN = "ここを自分だけの合言葉に変更";
 
 const TYPE_LABEL = { exp: "支出", inc: "収入" };
+const SCRIPT_VERSION = 2; // アプリ側で「プログラムが古い版か」を判定するための番号
 const NO_SUB = "（小分類なし）";
 
 /** 項目 c の小分類の並び（設定の順 → 設定に無い名前 → 小分類なし） */
@@ -39,6 +40,7 @@ function doGet() {
 }
 
 function out_(obj) {
+  obj.v = SCRIPT_VERSION;
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
 }
 

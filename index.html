@@ -252,7 +252,7 @@ const TYPE_LABEL = {exp:"支出", inc:"収入"};
 const NO_SUB = "（小分類なし）";
 /* 小分類の一覧。保存データに小分類がまだ無いときは初期値を使う */
 function subsOf(t, c){ const sub = S.cats && S.cats.sub ? S.cats.sub : DEFAULT_SUB; return ((sub[t] || {})[c]) || []; }
-const APP_VERSION = "2026.10.16-1107"; // 独立版のビルド時に日時が入る
+const APP_VERSION = "2026.10.16-1125"; // 独立版のビルド時に日時が入る
 
 /* ---------- utils ---------- */
 const $ = s => document.querySelector(s);
@@ -518,6 +518,7 @@ async function saveRec(){
 }
 /* ---------- Googleスプレッドシート連携（独立版のみ） ---------- */
 const SYNC_KEY = "cashbook:sync";
+const SHEET_SCRIPT_VERSION = 2; // スプレッドシート側プログラムの最新版の番号
 const SETUP_URL = "https://github.com/yumoriba3/kakeibo/blob/main/SETUP_GOOGLE.md";
 const normToken = t => String(t || "").normalize("NFKC").replace(/[\s"“”'‘’]/g, "");
 function syncCfg(){ try { return JSON.parse(localStorage.getItem(SYNC_KEY)) || {}; } catch (e) { return {}; } }
@@ -550,8 +551,8 @@ async function syncNow(manual){
   syncing = true; renderSyncStatus();
   const rev = c.rev || 0;
   try {
-    await callSheet(c, { action: "save", data: await backupText() });
-    const n = syncCfg(); n.lastOk = Date.now(); n.lastErr = ""; if ((n.rev || 0) === rev) n.dirty = false; setSyncCfg(n);
+    const res = await callSheet(c, { action: "save", data: await backupText() });
+    const n = syncCfg(); n.lastOk = Date.now(); n.lastErr = ""; n.scriptVer = res.v || 1; if ((n.rev || 0) === rev) n.dirty = false; setSyncCfg(n);
     if (manual) toast("スプレッドシートに保存しました");
     if (n.dirty) { clearTimeout(syncTimer); syncTimer = setTimeout(() => syncNow(false), 1500); }
   } catch (e) {
@@ -563,15 +564,17 @@ function renderSyncStatus(){
   const c = syncCfg(), dot = $("#syncDot");
   if (dot) {
     dot.hidden = !c.url;
-    dot.className = "syncdot" + (c.lastErr ? " warn" : "");
-    dot.textContent = syncing ? "保存中…" : c.lastErr ? "未保存" : c.dirty ? "保存待ち" : "保存済";
+    const old = c.lastOk && (c.scriptVer || 1) < SHEET_SCRIPT_VERSION;
+    dot.className = "syncdot" + (c.lastErr || old ? " warn" : "");
+    dot.textContent = syncing ? "保存中…" : c.lastErr ? "未保存" : c.dirty ? "保存待ち" : old ? "要更新" : "保存済";
     dot.title = "Googleスプレッドシートへの保存状態";
   }
   const box = $("#syncState");
   if (box) box.innerHTML = syncStateHtml(c);
 }
 function syncStateHtml(c){
-  return '<div class="status' + (c.lastErr ? " local" : "") + '"><i></i><span>' +
+  const old = c.lastOk && (c.scriptVer || 1) < SHEET_SCRIPT_VERSION;
+  return (old ? '<div class="status local"><i></i><span>スプレッドシート側のプログラムが古い版です。小分類などが反映されません。Apps Script を最新のものに貼り替え、「デプロイを管理」から新バージョンでデプロイしてから「今すぐ保存」を押してください。</span></div>' : '') + '<div class="status' + (c.lastErr ? " local" : "") + '"><i></i><span>' +
     (syncing ? "保存しています…" : c.lastErr ? esc(c.lastErr) : c.lastOk ? "最後に保存した日時：" + fmtTime(c.lastOk) + (c.dirty ? "（このあと保存します）" : "") : "まだ保存していません") + '</span></div>';
 }
 function viewSync(){
