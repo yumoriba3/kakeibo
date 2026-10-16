@@ -214,7 +214,7 @@ const DEFAULT_CATS = {
 };
 const PALETTE = ["#4F7FD6","#7DB547","#D9A441","#5BA7B5","#D0675C","#8A6FD1","#4DA57A","#C9B83C","#D17CA6","#6E8BA8","#E08A4A","#3E9C9C"];
 const TYPE_LABEL = {exp:"支出", inc:"収入"};
-const APP_VERSION = "2026.10.16-1038"; // 独立版のビルド時に日時が入る
+const APP_VERSION = "2026.10.16-1042"; // 独立版のビルド時に日時が入る
 
 /* ---------- utils ---------- */
 const $ = s => document.querySelector(s);
@@ -466,6 +466,7 @@ async function saveRec(){
 /* ---------- Googleスプレッドシート連携（独立版のみ） ---------- */
 const SYNC_KEY = "cashbook:sync";
 const SETUP_URL = "https://github.com/yumoriba3/kakeibo/blob/main/SETUP_GOOGLE.md";
+const normToken = t => String(t || "").normalize("NFKC").replace(/[\s"“”'‘’]/g, "");
 function syncCfg(){ try { return JSON.parse(localStorage.getItem(SYNC_KEY)) || {}; } catch (e) { return {}; } }
 function setSyncCfg(c){ try { localStorage.setItem(SYNC_KEY, JSON.stringify(c)); } catch (e) {} }
 const fmtTime = t => { const d = new Date(t); return (d.getMonth() + 1) + "/" + d.getDate() + " " + pad(d.getHours()) + ":" + pad(d.getMinutes()); };
@@ -527,7 +528,7 @@ function viewSync(){
     '<div id="syncState">' + syncStateHtml(c) + '</div>' +
     '<div class="btns two"><button class="btn ghost" data-act="syncNow">今すぐ保存</button><button class="btn ghost" data-act="syncLoad">Googleから復元</button></div>' +
     (S.tokenEdit
-      ? '<div class="recform"><label class="f">新しい合言葉（スプレッドシート側で変更・再デプロイしたもの）<input class="field" id="gNewToken" autocomplete="off" autocapitalize="off" value="' + esc(S.gNewToken || "") + '"></label>' +
+      ? '<div class="recform"><label class="f">新しい合言葉（スプレッドシート側で変更・再デプロイしたもの）<input class="field" id="gNewToken" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" value="' + esc(S.gNewToken || "") + '"></label>' +
         '<div class="btns two"><button class="btn ghost" data-act="tokenCancel">取消</button><button class="btn" data-act="tokenSave">変更する</button></div></div>'
       : '<button class="btn ghost" data-act="tokenEdit">合言葉を変更</button>') +
     '<button class="btn danger" data-act="syncOff">' + (S.armed === "sync" ? "もう一度押すと連携を解除します" : "連携を解除") + '</button>' +
@@ -535,12 +536,12 @@ function viewSync(){
   return '<section class="card"><h2>Googleスプレッドシート連携</h2>' +
     '<p class="note">ご自身のGoogleスプレッドシートに自動で保存します。iPhoneのデータが消えても復元でき、パソコンでもそのまま見られます。最初にパソコンでの準備が必要です。</p>' +
     '<a class="linkline" href="' + SETUP_URL + '" target="_blank" rel="noopener">準備の手順を見る →</a>' +
-    '<label class="f">ウェブアプリのURL<input class="field" id="gUrl" inputmode="url" autocomplete="off" autocapitalize="off" placeholder="https://script.google.com/macros/s/…/exec" value="' + esc(S.gUrl || "") + '"></label>' +
-    '<label class="f">合言葉<input class="field" id="gToken" autocomplete="off" autocapitalize="off" placeholder="スプレッドシート側に設定したもの" value="' + esc(S.gToken || "") + '"></label>' +
+    '<label class="f">ウェブアプリのURL<input class="field" id="gUrl" inputmode="url" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="https://script.google.com/macros/s/…/exec" value="' + esc(S.gUrl || "") + '"></label>' +
+    '<label class="f">合言葉<input class="field" id="gToken" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="スプレッドシート側に設定したもの" value="' + esc(S.gToken || "") + '"></label>' +
     '<button class="btn" data-act="syncConnect">接続して保存を始める</button></section>';
 }
 async function syncConnect(){
-  const url = (S.gUrl || "").trim(), token = (S.gToken || "").trim();
+  const url = (S.gUrl || "").trim(), token = normToken(S.gToken);
   if (!/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec$/.test(url)) return toast("URLは https://script.google.com/macros/s/…/exec の形で入力してください");
   if (!token) return toast("合言葉を入力してください");
   toast("接続しています…");
@@ -555,7 +556,7 @@ async function syncConnect(){
   markDirty(); await syncNow(true);
 }
 async function changeToken(){
-  const c = syncCfg(), token = (S.gNewToken || "").trim();
+  const c = syncCfg(), token = normToken(S.gNewToken);
   if (!token) return toast("新しい合言葉を入力してください");
   toast("確認しています…");
   try { await callSheet({ url: c.url, token }, { action: "ping" }); }
