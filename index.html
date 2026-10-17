@@ -73,6 +73,11 @@ button{cursor:pointer}
 .sum .bal.neg b{color:var(--exp)}
 
 main .wrap{padding-block:16px calc(96px + env(safe-area-inset-bottom,0px));display:grid;gap:16px}
+main .wrap:has(.savebar){padding-bottom:calc(160px + env(safe-area-inset-bottom,0px))}
+.savebar{position:fixed;left:0;right:0;bottom:calc(58px + env(safe-area-inset-bottom,0px));z-index:6;background:linear-gradient(to top,var(--bg) 70%,transparent);padding-block:14px 8px}
+.savein{max-width:560px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid}
+.savein .btn{opacity:.55;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-shadow:0 4px 14px rgb(0 0 0 / .15)}
+.savein .btn.ready{opacity:1}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;display:grid;gap:14px;min-width:0}
 h2{font-size:13px;font-weight:700;letter-spacing:.08em;color:var(--muted);margin:0;text-wrap:balance}
 .note{font-size:12.5px;color:var(--muted);margin:0}
@@ -230,7 +235,7 @@ textarea.copy{width:100%;height:140px;font-family:var(--font-num);font-size:12px
 .tabs svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 .tabs button[aria-current="page"]{color:var(--accent);font-weight:700}
 
-.toast{position:fixed;left:50%;bottom:calc(76px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--surface);padding:9px 16px;border-radius:999px;font-size:13.5px;z-index:20;max-width:calc(100% - 32px);text-align:center;transition:opacity .2s}
+.toast{position:fixed;left:50%;bottom:calc(136px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--surface);padding:9px 16px;border-radius:999px;font-size:13.5px;z-index:20;max-width:calc(100% - 32px);text-align:center;transition:opacity .2s}
 @media (prefers-reduced-motion: reduce){*{transition:none!important}}
 </style>
 
@@ -290,7 +295,7 @@ const TYPE_LABEL = {exp:"支出", inc:"収入"};
 const NO_SUB = "（小分類なし）";
 /* 小分類の一覧。保存データに小分類がまだ無いときは初期値を使う */
 function subsOf(t, c){ const sub = S.cats && S.cats.sub ? S.cats.sub : DEFAULT_SUB; return ((sub[t] || {})[c]) || []; }
-const APP_VERSION = "2026.10.17-1218"; // 独立版のビルド時に日時が入る
+const APP_VERSION = "2026.10.17-1220"; // 独立版のビルド時に日時が入る
 
 /* ---------- utils ---------- */
 const $ = s => document.querySelector(s);
@@ -392,7 +397,7 @@ function viewInput(){
       ? '<div class="btns two"><button class="btn ghost" data-act="cancel">キャンセル</button><button class="btn" data-act="save">更新する</button></div>' +
         (f.r ? '' : '<button class="btn ghost" data-act="toRec">この明細を毎月の定期に登録</button>') +
         '<button class="btn danger" data-act="delEntry">' + (S.armed === "entry" ? "もう一度押すと削除します" : "この明細を削除") + '</button>'
-      : '<button class="btn" data-act="save">保存する</button>') +
+      : '<div class="savebar"><div class="savein"><button class="btn" data-act="save" id="saveBtn">保存する</button></div></div>') +
     '</section>' +
     (editing ? '' : '<section class="card"><h2 id="dayTitle"></h2><div id="dayList"></div></section>');
 }
@@ -435,6 +440,12 @@ function calcKey(k){
   else { const cur = (e.match(/\d+$/) || [""])[0]; if (cur === "0" || (!cur && k === "00")) return; if (cur.length >= 9 || e.length >= 40) return; e += k; }
   setExpr(e);
 }
+function renderSaveBtn(){
+  const b = $("#saveBtn"); if (!b) return;
+  const f = S.form, a = parseInt(f.a, 10);
+  b.textContent = !a ? "金額を入力してください" : !f.c ? "項目を選んで保存（" + yen(a) + "）" : "保存する　" + f.c + (f.s ? " / " + f.s : "") + "　" + yen(a);
+  b.classList.toggle("ready", !!(a && f.c));
+}
 function renderAmount(){
   const v = $("#amtView"), pad = $("#calcPad"); if (!v) return;
   const f = S.form, e = f.expr || "", hasOp = /[+−×÷]/.test(e);
@@ -443,6 +454,7 @@ function renderAmount(){
     ? '<span class="expr">' + esc(fmtExpr(e)) + '</span><span class="res' + (bad ? ' bad' : '') + '">' + (bad ? "計算できません" : "= " + Math.round(val).toLocaleString("ja-JP")) + '</span>'
     : esc(fmtExpr(e));
   if (pad) pad.hidden = !S.calcOpen;
+  renderSaveBtn();
   const box = v.closest(".amount"); if (box) box.classList.toggle("on", !!S.calcOpen);
 }
 function memoCandidates(){
@@ -850,7 +862,7 @@ async function saveEntry(){
   const f = S.form, a = parseInt(f.a, 10);
   if (/[+−×÷]/.test(f.expr || "") && !a) return toast("計算結果が0円以下です。式を確認してください");
   if (!a || a <= 0) return toast("金額を入力してください");
-  if (!f.c) return toast("項目を選んでください");
+  if (!f.c) { const ch = document.querySelector(".chips"); if (ch) ch.scrollIntoView({ block: "center", behavior: "smooth" }); return toast("項目を選んでください"); }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(f.d)) return toast("日付を入力してください");
   const e = { id: f.id || uid(), d: f.d, t: f.t, c: f.c, a, m: (f.m || "").trim() };
   if (f.r) e.r = f.r;
@@ -1050,15 +1062,15 @@ document.addEventListener("click", ev => {
   if (act !== "delCat" && act !== "delEntry" && act !== "recDel" && act !== "syncOff" && act !== "delSub") S.armed = null;
   switch (act) {
     case "type": S.form.t = b.dataset.t; S.form.c = ""; S.form.s = ""; renderView(); break;
-    case "cat": if (S.form.c !== b.dataset.c) S.form.s = ""; S.form.c = b.dataset.c; document.querySelectorAll(".chip").forEach(x => x.setAttribute("aria-pressed", x === b)); renderSubs(); renderSugs(); break;
+    case "cat": if (S.form.c !== b.dataset.c) S.form.s = ""; S.form.c = b.dataset.c; document.querySelectorAll(".chip").forEach(x => x.setAttribute("aria-pressed", x === b)); renderSubs(); renderSugs(); renderSaveBtn(); break;
     case "amtTap": S.calcOpen = !S.calcOpen; renderAmount(); break;
     case "ck": calcKey(b.dataset.k); break;
-    case "sub": S.form.s = S.form.s === b.dataset.s ? "" : b.dataset.s; renderSubs(); break;
+    case "sub": S.form.s = S.form.s === b.dataset.s ? "" : b.dataset.s; renderSubs(); renderSaveBtn(); break;
     case "sug": {
       S.form.m = b.dataset.m; const inp = $("#fMemo"); if (inp) inp.value = S.form.m;
       if (!S.form.c && (S.cats[S.form.t] || []).includes(b.dataset.c)) { S.form.c = b.dataset.c; document.querySelectorAll(".chip").forEach(x => x.setAttribute("aria-pressed", x.dataset.c === S.form.c)); }
       if (S.form.c === b.dataset.c && !S.form.s && b.dataset.s) S.form.s = b.dataset.s;
-      renderSubs(); renderSugs(); break;
+      renderSubs(); renderSugs(); renderSaveBtn(); break;
     }
     case "delMemo": { const m = b.dataset.m, mt = b.dataset.t; S.store.mutate("settings/memos", body => ({ items: ((body && body.items) || []).filter(x => !(x.m === m && x.t === mt)) })).catch(err => toast(errMsg(err))); break; }
     case "save": saveEntry(); break;
