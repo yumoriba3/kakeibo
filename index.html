@@ -87,7 +87,7 @@ h2{font-size:13px;font-weight:700;letter-spacing:.08em;color:var(--muted);margin
 /* form */
 .amount{display:flex;align-items:baseline;gap:6px;border-bottom:2px solid var(--line);padding-bottom:6px}
 .amount:focus-within{border-color:var(--accent)}
-.amount span{font-family:var(--font-num);font-size:24px;color:var(--muted)}
+.amount .yen{font-family:var(--font-num);font-size:24px;color:var(--muted)}
 .amount input{flex:1;min-width:0;border:0;background:transparent;font-family:var(--font-num);font-size:34px;font-weight:500;padding:0;outline:none}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 label.f{display:grid;gap:4px;font-size:12px;color:var(--muted);min-width:0}
@@ -148,6 +148,19 @@ button.brow:disabled{cursor:default;opacity:1}
 .ybar{height:3px;background:var(--bg);border-radius:2px;margin-top:4px;overflow:hidden}
 .ybar i{display:block;height:100%;background:var(--exp);opacity:.55}
 #recCard{scroll-margin-top:calc(110px + env(safe-area-inset-top,0px))}
+.amtbtn{width:100%;border:0;border-bottom:2px solid var(--line);background:transparent;text-align:left;font:inherit;color:inherit;padding:0 0 6px;cursor:pointer}
+.amtbtn.on{border-bottom-color:var(--accent)}
+.amtv{flex:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;font-family:var(--font-num);font-size:34px;font-weight:500;line-height:1.2;overflow:hidden}
+.amtv .ph{color:var(--line)}
+.amtv .expr{font-size:18px;color:var(--muted);word-break:break-all}
+.amtv .res{font-size:34px}
+.amtv .res.bad{font-size:16px;color:var(--exp)}
+.calc{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.ck{height:48px;border:1px solid var(--line);border-radius:10px;background:var(--surface);font-family:var(--font-num);font-size:21px;color:var(--ink);cursor:pointer}
+.ck:active{background:var(--bg)}
+.ck.op{background:var(--accent-soft);color:var(--accent);font-weight:700}
+.ck.clr{color:var(--exp)}
+.ck.ok{background:var(--accent);color:var(--accent-ink);border-color:transparent;font-family:var(--font-body);font-size:16px;font-weight:700}
 .btn{border:0;border-radius:12px;padding:13px 16px;font-weight:700;background:var(--accent);color:var(--accent-ink);font-size:16px}
 .btn:active{opacity:.85}
 .btn.ghost{background:transparent;color:var(--accent);border:1px solid var(--line)}
@@ -277,7 +290,7 @@ const TYPE_LABEL = {exp:"支出", inc:"収入"};
 const NO_SUB = "（小分類なし）";
 /* 小分類の一覧。保存データに小分類がまだ無いときは初期値を使う */
 function subsOf(t, c){ const sub = S.cats && S.cats.sub ? S.cats.sub : DEFAULT_SUB; return ((sub[t] || {})[c]) || []; }
-const APP_VERSION = "2026.10.16-1323"; // 独立版のビルド時に日時が入る
+const APP_VERSION = "2026.10.17-1218"; // 独立版のビルド時に日時が入る
 
 /* ---------- utils ---------- */
 const $ = s => document.querySelector(s);
@@ -329,10 +342,10 @@ function localStore(){
 /* ---------- state ---------- */
 const S = {
   store: null, tab: "input", ym: todayStr().slice(0, 7),
-  cats: clone(DEFAULT_CATS), months: [], memos: [], rec: [], recForm: null, restore: null, backupCopy: null, pasting: false, catOpen: null, subRenaming: null, repOpen: {}, listMode: loadListMode(), calDay: null, entries: [], loaded: false,
+  cats: clone(DEFAULT_CATS), months: [], memos: [], rec: [], recForm: null, restore: null, backupCopy: null, pasting: false, calcOpen: true, catOpen: null, subRenaming: null, repOpen: {}, listMode: loadListMode(), calDay: null, entries: [], loaded: false,
   form: null, setType: "exp", armed: null, renaming: null, copyText: null
 };
-function blankForm(keep){ return { id: null, origYm: null, d: (keep && keep.d) || todayStr(), t: (keep && keep.t) || "exp", c: "", s: "", a: "", m: "" }; }
+function blankForm(keep){ return { id: null, origYm: null, d: (keep && keep.d) || todayStr(), t: (keep && keep.t) || "exp", c: "", s: "", a: "", expr: "", m: "" }; }
 S.form = blankForm();
 
 let unsubMonth = null;
@@ -368,7 +381,8 @@ function viewInput(){
   return '<section class="card">' +
     '<h2>' + (editing ? "明細を編集" : "記帳する") + '</h2>' +
     '<div class="seg" role="group" aria-label="区分"><button data-act="type" data-t="exp" aria-pressed="' + (f.t === "exp") + '">支出</button><button data-act="type" data-t="inc" aria-pressed="' + (f.t === "inc") + '">収入</button></div>' +
-    '<div class="amount"><span>¥</span><input id="fAmount" inputmode="numeric" autocomplete="off" placeholder="0" aria-label="金額" value="' + (f.a ? Number(f.a).toLocaleString("ja-JP") : "") + '"></div>' +
+    '<button class="amount amtbtn" data-act="amtTap" aria-label="金額を入力"><span class="yen">¥</span><span class="amtv" id="amtView"></span></button>' +
+    '<div class="calc" id="calcPad" hidden>' + CALC_KEYS.map(k => '<button class="ck' + (OPS.includes(k[0]) ? " op" : k[0] === "C" ? " clr" : k[0] === "完了" ? " ok" : "") + '" data-act="ck" data-k="' + k[0] + '"' + (k[1] ? ' style="grid-column:span ' + k[1] + '"' : '') + ' aria-label="' + (k[2] || k[0]) + '">' + (k[0] === "BS" ? "⌫" : k[0]) + '</button>').join("") + '</div>' +
     '<div class="row2"><label class="f">日付<input class="field" type="date" id="fDate" value="' + esc(f.d) + '"></label>' +
     '<label class="f">メモ（任意）<input class="field" id="fMemo" placeholder="店名・内容など" autocomplete="off" value="' + esc(f.m) + '"></label></div>' +
     '<div class="sugs" id="memoSug" role="group" aria-label="メモの候補" hidden></div>' +
@@ -388,6 +402,48 @@ function renderSubs(){
   if (f.s && !list.includes(f.s)) list.push(f.s);
   box.innerHTML = list.length ? '<div class="subrow" role="group" aria-label="小分類"><span class="sugl">小分類</span>' +
     list.map(x => '<button class="subchip" data-act="sub" data-s="' + esc(x) + '" aria-pressed="' + (f.s === x) + '">' + esc(x) + '</button>').join("") + '</div>' : "";
+}
+/* ---------- 電卓つき金額入力 ---------- */
+const CALC_KEYS = [["C",0,"全部消す"],["÷",0,"割る"],["×",0,"掛ける"],["BS",0,"1文字消す"],["7"],["8"],["9"],["−",0,"引く"],["4"],["5"],["6"],["+",0,"足す"],["1"],["2"],["3"],["=",0,"計算する"],["0"],["00"],["完了",2,"入力を終える"]];
+const OPS = "+−×÷";
+function calcEval(expr){
+  const toks = String(expr || "").match(/\d+|[+−×÷]/g) || [];
+  while (toks.length && OPS.includes(toks[toks.length - 1])) toks.pop();
+  if (!toks.length || OPS.includes(toks[0])) return 0;
+  const vals = [Number(toks[0])], ops = [];
+  for (let i = 1; i < toks.length; i += 2) {
+    const op = toks[i], n = Number(toks[i + 1]);
+    if (op === "×") vals.push(vals.pop() * n);
+    else if (op === "÷") vals.push(n ? vals.pop() / n : NaN);
+    else { ops.push(op); vals.push(n); }
+  }
+  return ops.reduce((r, op, i) => op === "+" ? r + vals[i + 1] : r - vals[i + 1], vals[0]);
+}
+const fmtExpr = e => String(e || "").replace(/\d+/g, n => Number(n).toLocaleString("ja-JP"));
+function setExpr(expr){
+  const f = S.form; f.expr = expr;
+  const v = calcEval(expr); f.a = isFinite(v) && v > 0 ? String(Math.round(v)) : "";
+  renderAmount();
+}
+function calcKey(k){
+  let e = S.form.expr || "";
+  const last = e.slice(-1);
+  if (k === "C") e = "";
+  else if (k === "BS") e = e.slice(0, -1);
+  else if (k === "=" || k === "完了") { e = S.form.a || ""; if (k === "完了") S.calcOpen = false; }
+  else if (OPS.includes(k)) { if (!e) return; e = OPS.includes(last) ? e.slice(0, -1) + k : e + k; }
+  else { const cur = (e.match(/\d+$/) || [""])[0]; if (cur === "0" || (!cur && k === "00")) return; if (cur.length >= 9 || e.length >= 40) return; e += k; }
+  setExpr(e);
+}
+function renderAmount(){
+  const v = $("#amtView"), pad = $("#calcPad"); if (!v) return;
+  const f = S.form, e = f.expr || "", hasOp = /[+−×÷]/.test(e);
+  const val = calcEval(e), bad = hasOp && !(isFinite(val) && val > 0);
+  v.innerHTML = !e ? '<span class="ph">0</span>' : hasOp
+    ? '<span class="expr">' + esc(fmtExpr(e)) + '</span><span class="res' + (bad ? ' bad' : '') + '">' + (bad ? "計算できません" : "= " + Math.round(val).toLocaleString("ja-JP")) + '</span>'
+    : esc(fmtExpr(e));
+  if (pad) pad.hidden = !S.calcOpen;
+  const box = v.closest(".amount"); if (box) box.classList.toggle("on", !!S.calcOpen);
 }
 function memoCandidates(){
   const f = S.form, q = (f.m || "").trim().toLowerCase();
@@ -781,7 +837,7 @@ function viewSettings(){
 function renderView(){
   const v = $("#view");
   v.innerHTML = S.tab === "input" ? viewInput() : S.tab === "list" ? viewList() : S.tab === "report" ? viewReport() : viewSettings();
-  if (S.tab === "input") { renderDayList(); renderSugs(); renderSubs(); }
+  if (S.tab === "input") { renderDayList(); renderSugs(); renderSubs(); renderAmount(); }
 }
 function renderAll(){ renderSum(); renderTabs(); renderView(); }
 
@@ -792,6 +848,7 @@ async function addMonthIndex(ym){
 }
 async function saveEntry(){
   const f = S.form, a = parseInt(f.a, 10);
+  if (/[+−×÷]/.test(f.expr || "") && !a) return toast("計算結果が0円以下です。式を確認してください");
   if (!a || a <= 0) return toast("金額を入力してください");
   if (!f.c) return toast("項目を選んでください");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(f.d)) return toast("日付を入力してください");
@@ -808,7 +865,7 @@ async function saveEntry(){
     S.form = blankForm(editing ? null : f);
     if (editing) { S.tab = "list"; }
     renderAll();
-    if (!editing) { const inp = $("#fAmount"); if (inp) inp.focus(); }
+    if (!editing) { S.calcOpen = true; renderAmount(); }
   } catch (err) { toast(err && err.code === "local" ? "端末に保存できませんでした" : errMsg(err)); }
 }
 async function deleteEntry(){
@@ -994,6 +1051,8 @@ document.addEventListener("click", ev => {
   switch (act) {
     case "type": S.form.t = b.dataset.t; S.form.c = ""; S.form.s = ""; renderView(); break;
     case "cat": if (S.form.c !== b.dataset.c) S.form.s = ""; S.form.c = b.dataset.c; document.querySelectorAll(".chip").forEach(x => x.setAttribute("aria-pressed", x === b)); renderSubs(); renderSugs(); break;
+    case "amtTap": S.calcOpen = !S.calcOpen; renderAmount(); break;
+    case "ck": calcKey(b.dataset.k); break;
     case "sub": S.form.s = S.form.s === b.dataset.s ? "" : b.dataset.s; renderSubs(); break;
     case "sug": {
       S.form.m = b.dataset.m; const inp = $("#fMemo"); if (inp) inp.value = S.form.m;
@@ -1005,7 +1064,7 @@ document.addEventListener("click", ev => {
     case "save": saveEntry(); break;
     case "cancel": S.form = blankForm(); S.tab = "list"; renderAll(); break;
     case "delEntry": deleteEntry(); break;
-    case "edit": { const e = S.entries.find(x => x.id === b.dataset.id); if (!e) return; S.form = { id: e.id, origYm: e.d.slice(0, 7), d: e.d, t: e.t, c: e.c, a: String(e.a), m: e.m || "", r: e.r || null, s: e.s || "" }; S.tab = "input"; renderTabs(); renderView(); window.scrollTo(0, 0); break; }
+    case "edit": { const e = S.entries.find(x => x.id === b.dataset.id); if (!e) return; S.form = { id: e.id, origYm: e.d.slice(0, 7), d: e.d, t: e.t, c: e.c, a: String(e.a), expr: String(e.a), m: e.m || "", r: e.r || null, s: e.s || "" }; S.calcOpen = false; S.tab = "input"; renderTabs(); renderView(); window.scrollTo(0, 0); break; }
     case "xlsxMonth": exportMonth(); break;
     case "listMode": S.listMode = b.dataset.m; try { localStorage.setItem(LIST_MODE_KEY, S.listMode); } catch (e) {} renderView(); break;
     case "calDay": S.calDay = b.dataset.d; renderView(); break;
