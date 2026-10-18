@@ -169,6 +169,7 @@ button.brow:disabled{cursor:default;opacity:1}
 .ck.op{background:var(--accent-soft);color:var(--accent);font-weight:700}
 .ck.clr{color:var(--exp)}
 .ck.ok{background:var(--accent);color:var(--accent-ink);border-color:transparent;font-family:var(--font-body);font-size:16px;font-weight:700}
+.shopn{font-weight:500;color:var(--ink)}
 .btn{border:0;border-radius:12px;padding:13px 16px;font-weight:700;background:var(--accent);color:var(--accent-ink);font-size:16px}
 .btn:active{opacity:.85}
 .btn.ghost{background:transparent;color:var(--accent);border:1px solid var(--line)}
@@ -298,7 +299,7 @@ const TYPE_LABEL = {exp:"支出", inc:"収入"};
 const NO_SUB = "（小分類なし）";
 /* 小分類の一覧。保存データに小分類がまだ無いときは初期値を使う */
 function subsOf(t, c){ const sub = S.cats && S.cats.sub ? S.cats.sub : DEFAULT_SUB; return ((sub[t] || {})[c]) || []; }
-const APP_VERSION = "2026.10.18-1450"; // 独立版のビルド時に日時が入る
+const APP_VERSION = "2026.10.18-1900"; // 独立版のビルド時に日時が入る
 
 /* ---------- utils ---------- */
 const $ = s => document.querySelector(s);
@@ -350,10 +351,10 @@ function localStore(){
 /* ---------- state ---------- */
 const S = {
   store: null, tab: "input", ym: todayStr().slice(0, 7),
-  cats: clone(DEFAULT_CATS), months: [], memos: [], rec: [], recForm: null, restore: null, backupCopy: null, pasting: false, calcOpen: true, catOpen: null, subRenaming: null, repOpen: {}, listMode: loadListMode(), calDay: null, entries: [], loaded: false,
+  cats: clone(DEFAULT_CATS), months: [], memos: [], shops: [], rec: [], recForm: null, restore: null, backupCopy: null, pasting: false, calcOpen: true, catOpen: null, subRenaming: null, repOpen: {}, listMode: loadListMode(), calDay: null, entries: [], loaded: false,
   form: null, setType: "exp", armed: null, renaming: null, copyText: null
 };
-function blankForm(keep){ return { id: null, origYm: null, d: (keep && keep.d) || todayStr(), t: (keep && keep.t) || "exp", c: "", s: "", a: "", expr: "", m: "" }; }
+function blankForm(keep){ return { id: null, origYm: null, d: (keep && keep.d) || todayStr(), t: (keep && keep.t) || "exp", c: "", s: "", a: "", expr: "", p: "", m: "" }; }
 S.form = blankForm();
 
 let unsubMonth = null;
@@ -377,7 +378,7 @@ function renderTabs(){ document.querySelectorAll(".tabs button").forEach(b => { 
 
 function entryRow(e){
   return '<button class="ent" data-act="edit" data-id="' + esc(e.id) + '"><i style="background:' + colorOf(e.c) + '"></i>' +
-    '<span class="t"><span>' + esc(e.c) + (e.s ? '<span class="subn"> / ' + esc(e.s) + '</span>' : '') + (e.r ? '<b class="badge">定期</b>' : '') + '</span>' + (e.m ? '<small>' + esc(e.m) + '</small>' : '') + '</span>' +
+    '<span class="t"><span>' + esc(e.c) + (e.s ? '<span class="subn"> / ' + esc(e.s) + '</span>' : '') + (e.r ? '<b class="badge">定期</b>' : '') + '</span>' + (e.p || e.m ? '<small>' + (e.p ? '<b class="shopn">' + esc(e.p) + '</b>' + (e.m ? '・' : '') : '') + esc(e.m || "") + '</small>' : '') + '</span>' +
     '<span class="a num' + (e.t === "inc" ? " inc" : "") + '">' + (e.t === "inc" ? "+" : "") + yen(e.a) + '</span></button>';
 }
 
@@ -392,7 +393,9 @@ function viewInput(){
     '<button class="amount amtbtn" data-act="amtTap" aria-label="金額を入力"><span class="yen">¥</span><span class="amtv" id="amtView"></span></button>' +
     '<div class="calc" id="calcPad" hidden>' + CALC_KEYS.map(k => '<button class="ck' + (OPS.includes(k[0]) ? " op" : k[0] === "C" ? " clr" : k[0] === "完了" ? " ok" : "") + '" data-act="ck" data-k="' + k[0] + '"' + (k[1] ? ' style="grid-column:span ' + k[1] + '"' : '') + ' aria-label="' + (k[2] || k[0]) + '">' + (k[0] === "BS" ? "⌫" : k[0]) + '</button>').join("") + '</div>' +
     '<div class="row2"><label class="f">日付<input class="field" type="date" id="fDate" value="' + esc(f.d) + '"></label>' +
-    '<label class="f">メモ（任意）<input class="field" id="fMemo" placeholder="店名・内容など" autocomplete="off" value="' + esc(f.m) + '"></label></div>' +
+    '<label class="f">お店（任意）<input class="field" id="fShop" placeholder="店名" autocomplete="off" value="' + esc(f.p || "") + '"></label></div>' +
+    '<div class="sugs" id="shopSug" role="group" aria-label="お店の候補" hidden></div>' +
+    '<label class="f">メモ（任意）<input class="field" id="fMemo" placeholder="買った物・内容など" autocomplete="off" value="' + esc(f.m) + '"></label>' +
     '<div class="sugs" id="memoSug" role="group" aria-label="メモの候補" hidden></div>' +
     '<div class="chips" role="group" aria-label="項目">' + chips + '</div>' +
     '<div id="subBox"></div>' +
@@ -474,6 +477,32 @@ function renderSugs(){
   box.hidden = !list.length;
   box.innerHTML = list.length ? '<span class="sugl">候補</span>' + list.map(x =>
     '<button class="sug" data-act="sug" data-m="' + esc(x.m) + '" data-c="' + esc(x.c) + '" data-s="' + esc(x.s || "") + '"><i style="background:' + colorOf(x.c) + '"></i>' + esc(x.m) + '</button>').join("") : "";
+}
+function shopCandidates(){
+  const f = S.form, q = (f.p || "").trim().toLowerCase();
+  let list = S.shops.filter(x => x.t === f.t && x.p !== f.p);
+  if (q) list = list.filter(x => x.p.toLowerCase().includes(q));
+  else if (f.c) list = list.filter(x => x.c === f.c);
+  const score = x => (f.c && x.c === f.c ? 1e9 : 0) + (q && x.p.toLowerCase().startsWith(q) ? 1e8 : 0) + x.n * 1e3 + (x.last || 0) / 1e10;
+  return list.sort((a, b) => score(b) - score(a)).slice(0, 8);
+}
+function renderShopSugs(){
+  const box = $("#shopSug"); if (!box) return;
+  const list = shopCandidates();
+  box.hidden = !list.length;
+  box.innerHTML = list.length ? '<span class="sugl">お店</span>' + list.map(x =>
+    '<button class="sug" data-act="shopSug" data-p="' + esc(x.p) + '" data-c="' + esc(x.c) + '" data-s="' + esc(x.s || "") + '"><i style="background:' + colorOf(x.c) + '"></i>' + esc(x.p) + '</button>').join("") : "";
+}
+async function rememberShop(e){
+  if (!e.p) return;
+  await S.store.mutate("settings/shops", b => {
+    const items = (b && b.items) || [];
+    const i = items.findIndex(x => x.p === e.p && x.t === e.t);
+    if (i >= 0) { items[i].n += 1; items[i].c = e.c; items[i].s = e.s || ""; items[i].last = Date.now(); }
+    else items.push({ p: e.p, t: e.t, c: e.c, s: e.s || "", n: 1, last: Date.now() });
+    items.sort((p, q) => q.last - p.last);
+    return { items: items.slice(0, 300) };
+  });
 }
 async function rememberMemo(e){
   if (!e.m) return;
@@ -684,7 +713,7 @@ async function saveRec(){
 }
 /* ---------- Googleスプレッドシート連携（独立版のみ） ---------- */
 const SYNC_KEY = "cashbook:sync";
-const SHEET_SCRIPT_VERSION = 2; // スプレッドシート側プログラムの最新版の番号
+const SHEET_SCRIPT_VERSION = 3; // スプレッドシート側プログラムの最新版の番号
 const SETUP_URL = "https://github.com/yumoriba3/kakeibo/blob/main/SETUP_GOOGLE.md";
 const normToken = t => String(t || "").normalize("NFKC").replace(/[\s"“”'‘’]/g, "");
 function syncCfg(){ try { return JSON.parse(localStorage.getItem(SYNC_KEY)) || {}; } catch (e) { return {}; } }
@@ -828,6 +857,12 @@ function viewSettings(){
     '<div>' + rows + '</div>' +
     '<div class="addrow"><input class="field" id="newCat" placeholder="新しい項目名" aria-label="新しい項目名"><button class="btn" data-act="addCat">追加</button></div>' +
     '<p class="note">項目名をタップすると、名前の変更と小分類の追加・並べ替え・削除ができます。名前の変更は過去の明細にも反映されます。項目や小分類を削除しても、過去の明細と集計はそのまま残ります。</p></section>' +
+    '<section class="card"><h2>お店の入力候補</h2>' +
+    (S.shops.length
+      ? '<div class="sugs wrapall">' + S.shops.slice().sort((a, b) => b.n - a.n || b.last - a.last).map(x =>
+          '<span class="sug"><i style="background:' + colorOf(x.c) + '"></i>' + esc(x.p) + '<small class="num">' + x.n + '回</small><button class="x" data-act="delShop" data-p="' + esc(x.p) + '" data-t="' + x.t + '" aria-label="' + esc(x.p) + 'を候補から外す">×</button></span>').join("") + '</div>'
+      : '<p class="note">お店を入れて記帳すると、ここに候補として登録されます。</p>') +
+    '<p class="note">お店の候補を選ぶと、前回と同じ項目・小分類も自動で入ります。使わなくなった候補は × で外せます。</p></section>' +
     '<section class="card"><h2>メモの入力候補</h2>' +
     (S.memos.length
       ? '<div class="sugs wrapall">' + S.memos.slice().sort((a, b) => b.n - a.n || b.last - a.last).map(x =>
@@ -852,7 +887,7 @@ function viewSettings(){
 function renderView(){
   const v = $("#view");
   v.innerHTML = S.tab === "input" ? viewInput() : S.tab === "list" ? viewList() : S.tab === "report" ? viewReport() : viewSettings();
-  if (S.tab === "input") { renderDayList(); renderSugs(); renderSubs(); renderAmount(); }
+  if (S.tab === "input") { renderDayList(); renderSugs(); renderShopSugs(); renderSubs(); renderAmount(); }
 }
 function renderAll(){ renderSum(); renderTabs(); renderView(); }
 
@@ -870,12 +905,14 @@ async function saveEntry(){
   const e = { id: f.id || uid(), d: f.d, t: f.t, c: f.c, a, m: (f.m || "").trim() };
   if (f.r) e.r = f.r;
   if (f.s) e.s = f.s;
+  if ((f.p || "").trim()) e.p = f.p.trim();
   const ym = e.d.slice(0, 7), editing = !!f.id;
   try {
     if (f.origYm && f.origYm !== ym) await S.store.mutate("months/" + f.origYm, b => Object.assign({}, b, { entries: ((b && b.entries) || []).filter(x => x.id !== e.id) }));
     await S.store.mutate("months/" + ym, b => { const list = (b && b.entries) || []; const i = list.findIndex(x => x.id === e.id); if (i >= 0) list[i] = e; else list.push(e); list.sort(byDate); return Object.assign({}, b, { entries: list }); });
     await addMonthIndex(ym);
     rememberMemo(e).catch(() => {});
+    rememberShop(e).catch(() => {});
     toast(editing ? "更新しました" : TYPE_LABEL[e.t] + " " + yen(a) + " を記帳しました");
     S.form = blankForm(editing ? null : f);
     if (editing) { S.tab = "list"; }
@@ -928,7 +965,7 @@ async function renameCat(i){
 /* ---------- Excel ---------- */
 let dlPromise = null;
 const downloads = () => dlPromise || (dlPromise = (window.claude && window.claude.use ? window.claude.use("downloads") : Promise.resolve(null)).catch(() => null));
-function detailRows(list){ return [["日付", "区分", "項目", "小分類", "金額", "メモ"]].concat(list.slice().sort((a, b) => a.d < b.d ? -1 : a.d > b.d ? 1 : 0).map(e => [e.d, TYPE_LABEL[e.t], e.c, e.s || "", e.a, e.m || ""])); }
+function detailRows(list){ return [["日付", "区分", "項目", "小分類", "金額", "お店", "メモ"]].concat(list.slice().sort((a, b) => a.d < b.d ? -1 : a.d > b.d ? 1 : 0).map(e => [e.d, TYPE_LABEL[e.t], e.c, e.s || "", e.a, e.p || "", e.m || ""])); }
 function orderedSubs(type, c, list){ const base = subsOf(type, c).slice(); list.forEach(e => { if (e.t === type && e.c === c && e.s && !base.includes(e.s)) base.push(e.s); }); if (list.some(e => e.t === type && e.c === c && !e.s)) base.push(""); return base; }
 function orderedCats(type, list){ const base = (S.cats[type] || []).slice(); list.forEach(e => { if (e.t === type && !base.includes(e.c)) base.push(e.c); }); return base; }
 function sheet(rows, widths){ const ws = XLSX.utils.aoa_to_sheet(rows); ws["!cols"] = widths.map(w => ({ wch: w })); return ws; }
@@ -955,7 +992,7 @@ async function saveBook(wb, filename){
 }
 
 /* ---------- バックアップと復元 ---------- */
-const BACKUP_PATH = /^(settings\/(categories|index|memos|recurring)|months\/\d{4}-\d{2})$/;
+const BACKUP_PATH = /^(settings\/(categories|index|memos|shops|recurring)|months\/\d{4}-\d{2})$/;
 async function exportBackup(){
   let json;
   try { json = await backupText(); } catch (e) { return toast("データを読み込めませんでした。もう一度お試しください"); }
@@ -963,7 +1000,7 @@ async function exportBackup(){
 }
 async function backupText(){
   const docs = {};
-  for (const p of ["settings/categories", "settings/index", "settings/memos", "settings/recurring"]) { const b = await S.store.get(p); if (b) docs[p] = b; }
+  for (const p of ["settings/categories", "settings/index", "settings/memos", "settings/shops", "settings/recurring"]) { const b = await S.store.get(p); if (b) docs[p] = b; }
   for (const ym of (docs["settings/index"] && docs["settings/index"].months) || []) { const b = await S.store.get("months/" + ym); if (b) docs["months/" + ym] = b; }
   return JSON.stringify({ app: "my-cashbook", version: 1, exportedAt: new Date().toISOString(), docs });
 }
@@ -1020,7 +1057,7 @@ function exportMonth(){
   });
   sum.push(["収支", "", "", t.bal, ""]);
   XLSX.utils.book_append_sheet(wb, sheet(sum, [10, 18, 22, 12, 8]), "集計");
-  XLSX.utils.book_append_sheet(wb, sheet(detailRows(list), [12, 6, 18, 20, 12, 30]), "明細");
+  XLSX.utils.book_append_sheet(wb, sheet(detailRows(list), [12, 6, 18, 20, 12, 20, 30]), "明細");
   saveBook(wb, "kakeibo_" + S.ym + ".xlsx");
 }
 async function exportYear(){
@@ -1046,7 +1083,7 @@ async function exportYear(){
   rows.push(line("収支", inc.map((v, i) => v - exp[i])));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, sheet(rows, [18].concat(Array(12).fill(10), [12])), "年間集計");
-  XLSX.utils.book_append_sheet(wb, sheet(detailRows(all), [12, 6, 18, 20, 12, 30]), "明細");
+  XLSX.utils.book_append_sheet(wb, sheet(detailRows(all), [12, 6, 18, 20, 12, 20, 30]), "明細");
   saveBook(wb, "kakeibo_" + y + ".xlsx");
 }
 function copyTsv(){
@@ -1065,10 +1102,17 @@ document.addEventListener("click", ev => {
   if (act !== "delCat" && act !== "delEntry" && act !== "recDel" && act !== "syncOff" && act !== "delSub") S.armed = null;
   switch (act) {
     case "type": S.form.t = b.dataset.t; S.form.c = ""; S.form.s = ""; renderView(); break;
-    case "cat": if (S.form.c !== b.dataset.c) S.form.s = ""; S.form.c = b.dataset.c; document.querySelectorAll(".chip").forEach(x => x.setAttribute("aria-pressed", x === b)); renderSubs(); renderSugs(); renderSaveBtn(); break;
+    case "cat": if (S.form.c !== b.dataset.c) S.form.s = ""; S.form.c = b.dataset.c; document.querySelectorAll(".chip").forEach(x => x.setAttribute("aria-pressed", x === b)); renderSubs(); renderSugs(); renderShopSugs(); renderSaveBtn(); break;
     case "amtTap": S.calcOpen = !S.calcOpen; renderAmount(); break;
     case "ck": calcKey(b.dataset.k); break;
     case "sub": S.form.s = S.form.s === b.dataset.s ? "" : b.dataset.s; renderSubs(); renderSaveBtn(); break;
+    case "shopSug": {
+      S.form.p = b.dataset.p; const inp = $("#fShop"); if (inp) inp.value = S.form.p;
+      if (!S.form.c && (S.cats[S.form.t] || []).includes(b.dataset.c)) { S.form.c = b.dataset.c; document.querySelectorAll(".chip").forEach(x => x.setAttribute("aria-pressed", x.dataset.c === S.form.c)); }
+      if (S.form.c === b.dataset.c && !S.form.s && b.dataset.s) S.form.s = b.dataset.s;
+      renderSubs(); renderSugs(); renderShopSugs(); renderSaveBtn(); break;
+    }
+    case "delShop": { const sp = b.dataset.p, st = b.dataset.t; S.store.mutate("settings/shops", body => ({ items: ((body && body.items) || []).filter(x => !(x.p === sp && x.t === st)) })).catch(err => toast(errMsg(err))); break; }
     case "sug": {
       S.form.m = b.dataset.m; const inp = $("#fMemo"); if (inp) inp.value = S.form.m;
       if (!S.form.c && (S.cats[S.form.t] || []).includes(b.dataset.c)) { S.form.c = b.dataset.c; document.querySelectorAll(".chip").forEach(x => x.setAttribute("aria-pressed", x.dataset.c === S.form.c)); }
@@ -1079,7 +1123,7 @@ document.addEventListener("click", ev => {
     case "save": saveEntry(); break;
     case "cancel": S.form = blankForm(); S.tab = "list"; renderAll(); break;
     case "delEntry": deleteEntry(); break;
-    case "edit": { const e = S.entries.find(x => x.id === b.dataset.id); if (!e) return; S.form = { id: e.id, origYm: e.d.slice(0, 7), d: e.d, t: e.t, c: e.c, a: String(e.a), expr: String(e.a), m: e.m || "", r: e.r || null, s: e.s || "" }; S.calcOpen = false; S.tab = "input"; renderTabs(); renderView(); window.scrollTo(0, 0); break; }
+    case "edit": { const e = S.entries.find(x => x.id === b.dataset.id); if (!e) return; S.form = { id: e.id, origYm: e.d.slice(0, 7), d: e.d, t: e.t, c: e.c, a: String(e.a), expr: String(e.a), p: e.p || "", m: e.m || "", r: e.r || null, s: e.s || "" }; S.calcOpen = false; S.tab = "input"; renderTabs(); renderView(); window.scrollTo(0, 0); break; }
     case "xlsxMonth": exportMonth(); break;
     case "listMode": S.listMode = b.dataset.m; try { localStorage.setItem(LIST_MODE_KEY, S.listMode); } catch (e) {} renderView(); break;
     case "calDay": S.calDay = b.dataset.d; renderView(); break;
@@ -1174,6 +1218,7 @@ document.addEventListener("input", ev => {
   else if (el.id === "gToken") S.gToken = el.value;
   else if (el.id === "gNewToken") S.gNewToken = el.value;
   else if (el.id === "fMemo") { S.form.m = el.value; renderSugs(); }
+  else if (el.id === "fShop") { S.form.p = el.value; renderShopSugs(); }
   else if (el.id === "fDate") { S.form.d = el.value; renderDayList(); }
 });
 document.addEventListener("change", ev => {
@@ -1211,6 +1256,7 @@ async function boot(){
   }
   S.store.watch("settings/categories", body => { S.cats = body && body.exp ? body : clone(DEFAULT_CATS); if (S.tab === "input" || S.tab === "settings") renderView(); });
   S.store.watch("settings/index", body => { S.months = (body && body.months) || []; S.yearData = null; if (S.tab === "report") renderView(); });
+  S.store.watch("settings/shops", body => { S.shops = (body && body.items) || []; if (S.tab === "input") renderShopSugs(); else if (S.tab === "settings" && !S.renaming) renderView(); });
   S.store.watch("settings/memos", body => { S.memos = (body && body.items) || []; if (S.tab === "input") renderSugs(); else if (S.tab === "settings" && !S.renaming) renderView(); });
   S.store.watch("settings/recurring", body => { S.rec = (body && body.items) || []; if (S.tab === "settings" && !S.renaming && !S.recForm) renderView(); });
   watchMonth();

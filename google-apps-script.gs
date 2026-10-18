@@ -6,7 +6,7 @@
 const TOKEN = "ここを自分だけの合言葉に変更";
 
 const TYPE_LABEL = { exp: "支出", inc: "収入" };
-const SCRIPT_VERSION = 2; // アプリ側で「プログラムが古い版か」を判定するための番号
+const SCRIPT_VERSION = 3; // アプリ側で「プログラムが古い版か」を判定するための番号
 const NO_SUB = "（小分類なし）";
 
 /** 項目 c の小分類の並び（設定の順 → 設定に無い名前 → 小分類なし） */
@@ -70,12 +70,12 @@ function save_(text) {
   entries.sort(function (a, b) { return a.d < b.d ? -1 : a.d > b.d ? 1 : 0; });
   const detail = sheet_("明細");
   detail.clear();
-  const rows = [["日付", "区分", "項目", "小分類", "金額", "メモ", "定期"]].concat(entries.map(function (e) {
+  const rows = [["日付", "区分", "項目", "小分類", "金額", "お店", "メモ", "定期"]].concat(entries.map(function (e) {
     const p = e.d.split("-");
-    return [new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2])), TYPE_LABEL[e.t] || e.t, e.c, e.s || "", e.a, e.m || "", e.r ? "定期" : ""];
+    return [new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2])), TYPE_LABEL[e.t] || e.t, e.c, e.s || "", e.a, e.p || "", e.m || "", e.r ? "定期" : ""];
   }));
-  detail.getRange(1, 1, rows.length, 7).setValues(rows);
-  detail.getRange(1, 1, 1, 7).setFontWeight("bold").setBackground("#E0EFF0");
+  detail.getRange(1, 1, rows.length, 8).setValues(rows);
+  detail.getRange(1, 1, 1, 8).setFontWeight("bold").setBackground("#E0EFF0");
   if (rows.length > 1) {
     detail.getRange(2, 1, rows.length - 1, 1).setNumberFormat("yyyy/mm/dd");
     detail.getRange(2, 5, rows.length - 1, 1).setNumberFormat("#,##0");
@@ -170,7 +170,7 @@ function writeBreakdown_(entries, cats) {
         const pushItems = function (list2) {
           list2.forEach(function (e) {
             const p = e.d.split("-");
-            rows.push(["", new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2])), e.m || "（メモなし）", e.a]); fmt.date.push(rows.length);
+            rows.push(["", new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2])), (e.p ? e.p + (e.m ? "　" + e.m : "") : (e.m || "（メモなし）")), e.a]); fmt.date.push(rows.length);
           });
         };
         if (!items.some(function (e) { return e.s; })) { pushItems(items); return; }
