@@ -299,7 +299,7 @@ const TYPE_LABEL = {exp:"支出", inc:"収入"};
 const NO_SUB = "（小分類なし）";
 /* 小分類の一覧。保存データに小分類がまだ無いときは初期値を使う */
 function subsOf(t, c){ const sub = S.cats && S.cats.sub ? S.cats.sub : DEFAULT_SUB; return ((sub[t] || {})[c]) || []; }
-const APP_VERSION = "2026.10.18-1900"; // 独立版のビルド時に日時が入る
+const APP_VERSION = "2026.10.20-1213"; // 独立版のビルド時に日時が入る
 
 /* ---------- utils ---------- */
 const $ = s => document.querySelector(s);
@@ -415,10 +415,10 @@ function renderSubs(){
     list.map(x => '<button class="subchip" data-act="sub" data-s="' + esc(x) + '" aria-pressed="' + (f.s === x) + '">' + esc(x) + '</button>').join("") + '</div>' : "";
 }
 /* ---------- 電卓つき金額入力 ---------- */
-const CALC_KEYS = [["C",0,"全部消す"],["÷",0,"割る"],["×",0,"掛ける"],["BS",0,"1文字消す"],["7"],["8"],["9"],["−",0,"引く"],["4"],["5"],["6"],["+",0,"足す"],["1"],["2"],["3"],["=",0,"計算する"],["0"],["00"],["完了",2,"入力を終える"]];
+const CALC_KEYS = [["C",0,"全部消す"],["÷",0,"割る"],["×",0,"掛ける"],["BS",0,"1文字消す"],["7"],["8"],["9"],["−",0,"引く"],["4"],["5"],["6"],["+",0,"足す"],["1"],["2"],["3"],["=",0,"計算する"],["0"],["00"],[".",0,"小数点"],["完了",0,"入力を終える"]];
 const OPS = "+−×÷";
 function calcEval(expr){
-  const toks = String(expr || "").match(/\d+|[+−×÷]/g) || [];
+  const toks = String(expr || "").match(/\d+(?:\.\d*)?|\.\d+|[+−×÷]/g) || [];
   while (toks.length && OPS.includes(toks[toks.length - 1])) toks.pop();
   if (!toks.length || OPS.includes(toks[0])) return 0;
   const vals = [Number(toks[0])], ops = [];
@@ -430,7 +430,7 @@ function calcEval(expr){
   }
   return ops.reduce((r, op, i) => op === "+" ? r + vals[i + 1] : r - vals[i + 1], vals[0]);
 }
-const fmtExpr = e => String(e || "").replace(/\d+/g, n => Number(n).toLocaleString("ja-JP"));
+const fmtExpr = e => String(e || "").replace(/\d+(?:\.\d*)?/g, n => { const [i, d] = n.split("."); return Number(i).toLocaleString("ja-JP") + (d !== undefined ? "." + d : ""); });
 function setExpr(expr){
   const f = S.form; f.expr = expr;
   const v = calcEval(expr); f.a = isFinite(v) && v > 0 ? String(Math.round(v)) : "";
@@ -443,7 +443,12 @@ function calcKey(k){
   else if (k === "BS") e = e.slice(0, -1);
   else if (k === "=" || k === "完了") { e = S.form.a || ""; if (k === "完了") S.calcOpen = false; }
   else if (OPS.includes(k)) { if (!e) return; e = OPS.includes(last) ? e.slice(0, -1) + k : e + k; }
-  else { const cur = (e.match(/\d+$/) || [""])[0]; if (cur === "0" || (!cur && k === "00")) return; if (cur.length >= 9 || e.length >= 40) return; e += k; }
+  else if (k === ".") { const cur = (e.match(/[\d.]+$/) || [""])[0]; if (cur.includes(".") || e.length >= 40) return; e += cur ? "." : "0."; }
+  else {
+    const cur = (e.match(/[\d.]+$/) || [""])[0], dec = cur.includes(".") ? cur.split(".")[1] : null;
+    if (dec !== null) { if (dec.length + k.length > 2) return; e += k; }
+    else { if (cur === "0" || (!cur && k === "00")) return; if (cur.length >= 9 || e.length >= 40) return; e += k; }
+  }
   setExpr(e);
 }
 function renderSaveBtn(){
