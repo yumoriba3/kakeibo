@@ -122,7 +122,12 @@ button.sug:active{background:var(--accent-soft);border-color:var(--accent)}
 button.brow{border:0;background:transparent;padding:0;text-align:left;width:100%;font:inherit;color:inherit}
 button.brow:disabled{cursor:default;opacity:1}
 .chev{color:var(--muted);font-size:11px;margin-left:6px}
-.subbars{display:grid;gap:4px;margin:-4px 0 4px 12px;padding-left:10px;border-left:2px solid var(--line);font-size:12.5px}
+.subbars{display:grid;gap:7px;margin:-2px 0 6px 12px;padding-left:10px;border-left:2px solid var(--line);font-size:12.5px}
+.srow{display:grid;gap:3px}
+.strack{height:3px;background:var(--bg);border-radius:2px;overflow:hidden}
+.strack i{display:block;height:100%;opacity:.6}
+.subtoggle{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.linkbtn{flex:none;border:0;background:transparent;color:var(--accent);font-size:12.5px;padding:2px 0;cursor:pointer;font-weight:700}
 .subbars .l{display:flex;justify-content:space-between;gap:8px;color:var(--muted)}
 .subbars .l small{margin-left:6px}
 .subcount{display:block;font-size:11px;color:var(--muted);font-weight:400}
@@ -299,7 +304,7 @@ const TYPE_LABEL = {exp:"支出", inc:"収入"};
 const NO_SUB = "（小分類なし）";
 /* 小分類の一覧。保存データに小分類がまだ無いときは初期値を使う */
 function subsOf(t, c){ const sub = S.cats && S.cats.sub ? S.cats.sub : DEFAULT_SUB; return ((sub[t] || {})[c]) || []; }
-const APP_VERSION = "2026.10.20-1213"; // 独立版のビルド時に日時が入る
+const APP_VERSION = "2026.10.21-1254"; // 独立版のビルド時に日時が入る
 
 /* ---------- utils ---------- */
 const $ = s => document.querySelector(s);
@@ -579,16 +584,16 @@ function breakdown(type){
   const rows = Object.entries(sums).sort((a, b) => b[1] - a[1]);
   const total = rows.reduce((s, r) => s + r[1], 0), max = rows.length ? rows[0][1] : 1;
   const body = rows.length ? rows.map(([c, v]) => {
-    const k = type + "|" + c, open = !!S.repOpen[k];
+    const k = type + "|" + c, open = k in S.repOpen ? !!S.repOpen[k] : !S.subsClosed;
     const subs = {}; S.entries.filter(e => e.t === type && e.c === c).forEach(e => { const n = e.s || NO_SUB; subs[n] = (subs[n] || 0) + e.a; });
     const subRows = Object.entries(subs).sort((a, b2) => b2[1] - a[1]);
     const hasSub = subRows.some(r => r[0] !== NO_SUB);
     return '<button class="brow' + (hasSub ? ' tap' : '') + '" data-act="repToggle" data-k="' + esc(k) + '"' + (hasSub ? ' aria-expanded="' + open + '"' : ' disabled') + '><div class="l"><span>' + esc(c) + (hasSub ? '<span class="chev">' + (open ? '▾' : '▸') + '</span>' : '') + '</span><span class="num">' + yen(v) + '<small>' + (v / total * 100).toFixed(1) + '%</small></span></div>' +
       '<div class="track"><div style="width:' + (v / max * 100).toFixed(1) + '%;background:' + colorOf(c) + '"></div></div></button>' +
-      (open && hasSub ? '<div class="subbars">' + subRows.map(([n, sv]) => '<div class="l"><span>' + esc(n) + '</span><span class="num">' + yen(sv) + '<small>' + (sv / v * 100).toFixed(1) + '%</small></span></div>').join("") + '</div>' : '');
+      (open && hasSub ? '<div class="subbars">' + subRows.map(([n, sv]) => '<div class="srow"><div class="l"><span>' + esc(n) + '</span><span class="num">' + yen(sv) + '<small>' + (sv / v * 100).toFixed(1) + '%</small></span></div><div class="strack"><i style="width:' + (sv / v * 100).toFixed(1) + '%;background:' + colorOf(c) + '"></i></div></div>').join("") + '</div>' : '');
   }).join("")
     : '<p class="empty">' + TYPE_LABEL[type] + 'の記帳はありません。</p>';
-  return '<section class="card"><h2>' + TYPE_LABEL[type] + 'の内訳</h2>' + (type === "exp" && rows.length ? '<p class="note">▸の付いた項目を押すと、小分類ごとの金額を表示します。</p>' : '') + '<div class="bars">' + body + '</div>' +
+  return '<section class="card"><h2>' + TYPE_LABEL[type] + 'の内訳</h2>' + (type === "exp" && rows.length ? '<div class="subtoggle"><p class="note">項目の下に小分類ごとの金額を表示しています。項目を押すと開閉できます。</p><button class="linkbtn" data-act="subsAll">' + (S.subsClosed ? "小分類をすべて表示" : "小分類をすべて閉じる") + '</button></div>' : '') + '<div class="bars">' + body + '</div>' +
     '<div class="total"><span>' + TYPE_LABEL[type] + '合計</span><span class="num">' + yen(total) + '</span></div></section>';
 }
 /* ---------- 年間収支 ---------- */
@@ -1133,7 +1138,8 @@ document.addEventListener("click", ev => {
     case "listMode": S.listMode = b.dataset.m; try { localStorage.setItem(LIST_MODE_KEY, S.listMode); } catch (e) {} renderView(); break;
     case "calDay": S.calDay = b.dataset.d; renderView(); break;
     case "calAdd": S.form = blankForm(); S.form.d = b.dataset.d; S.tab = "input"; renderAll(); window.scrollTo(0, 0); break;
-    case "repToggle": { const k = b.dataset.k; S.repOpen[k] = !S.repOpen[k]; renderView(); break; }
+    case "repToggle": { const k = b.dataset.k, cur = k in S.repOpen ? !!S.repOpen[k] : !S.subsClosed; S.repOpen[k] = !cur; renderView(); break; }
+    case "subsAll": S.subsClosed = !S.subsClosed; S.repOpen = {}; renderView(); break;
     case "xlsxYear": exportYear(); break;
     case "copyTsv": copyTsv(); break;
     case "setType": S.setType = b.dataset.t; S.renaming = null; S.catOpen = null; S.subRenaming = null; renderView(); break;
