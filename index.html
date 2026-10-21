@@ -115,7 +115,10 @@ button.sug:active{background:var(--accent-soft);border-color:var(--accent)}
 .sug i{width:6px;height:6px;border-radius:50%;flex:none}
 .sug small{color:var(--muted);font-size:11px}
 .sug .x{border:0;background:transparent;color:var(--exp);padding:0 0 0 4px;font-size:14px;line-height:1}
-.subrow{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:-4px}
+.subrow{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+#subBox{grid-column:1/-1}
+.chips #subBox .subrow{padding:10px;margin:2px 0 4px;background:var(--bg);border:1px solid var(--accent);border-radius:12px}
+.chips #subBox .sugl{width:100%;font-weight:700;color:var(--accent)}
 .subchip{border:1px solid var(--line);background:var(--bg);border-radius:999px;padding:6px 12px;font-size:13px}
 .subchip[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft);color:var(--accent);font-weight:700}
 .subn{color:var(--muted);font-size:12.5px;font-weight:400}
@@ -304,7 +307,7 @@ const TYPE_LABEL = {exp:"支出", inc:"収入"};
 const NO_SUB = "（小分類なし）";
 /* 小分類の一覧。保存データに小分類がまだ無いときは初期値を使う */
 function subsOf(t, c){ const sub = S.cats && S.cats.sub ? S.cats.sub : DEFAULT_SUB; return ((sub[t] || {})[c]) || []; }
-const APP_VERSION = "2026.10.21-1254"; // 独立版のビルド時に日時が入る
+const APP_VERSION = "2026.10.21-1322"; // 独立版のビルド時に日時が入る
 
 /* ---------- utils ---------- */
 const $ = s => document.querySelector(s);
@@ -416,8 +419,15 @@ function renderSubs(){
   const box = $("#subBox"); if (!box) return;
   const f = S.form, list = f.c ? subsOf(f.t, f.c).slice() : [];
   if (f.s && !list.includes(f.s)) list.push(f.s);
-  box.innerHTML = list.length ? '<div class="subrow" role="group" aria-label="小分類"><span class="sugl">小分類</span>' +
+  box.innerHTML = list.length ? '<div class="subrow" role="group" aria-label="小分類"><span class="sugl">' + esc(f.c) + 'の小分類</span>' +
     list.map(x => '<button class="subchip" data-act="sub" data-s="' + esc(x) + '" aria-pressed="' + (f.s === x) + '">' + esc(x) + '</button>').join("") + '</div>' : "";
+  box.hidden = !list.length;
+  // 選んだ項目の行のすぐ下に小分類を出す（下までスクロールしなくて済むように）
+  const grid = document.querySelector(".chips");
+  if (grid && list.length) {
+    const chips = [...grid.querySelectorAll(".chip")], i = chips.findIndex(x => x.dataset.c === f.c);
+    if (i >= 0) { const cols = getComputedStyle(grid).gridTemplateColumns.split(" ").length || 3; chips[Math.min(Math.floor(i / cols) * cols + cols - 1, chips.length - 1)].after(box); }
+  }
 }
 /* ---------- 電卓つき金額入力 ---------- */
 const CALC_KEYS = [["C",0,"全部消す"],["÷",0,"割る"],["×",0,"掛ける"],["BS",0,"1文字消す"],["7"],["8"],["9"],["−",0,"引く"],["4"],["5"],["6"],["+",0,"足す"],["1"],["2"],["3"],["=",0,"計算する"],["0"],["00"],[".",0,"小数点"],["完了",0,"入力を終える"]];
