@@ -307,7 +307,7 @@ const TYPE_LABEL = {exp:"支出", inc:"収入"};
 const NO_SUB = "（小分類なし）";
 /* 小分類の一覧。保存データに小分類がまだ無いときは初期値を使う */
 function subsOf(t, c){ const sub = S.cats && S.cats.sub ? S.cats.sub : DEFAULT_SUB; return ((sub[t] || {})[c]) || []; }
-const APP_VERSION = "2026.10.21-1322"; // 独立版のビルド時に日時が入る
+const APP_VERSION = "2026.10.23-1127"; // 独立版のビルド時に日時が入る
 
 /* ---------- utils ---------- */
 const $ = s => document.querySelector(s);
@@ -404,7 +404,6 @@ function viewInput(){
     '<label class="f">お店（任意）<input class="field" id="fShop" placeholder="店名" autocomplete="off" value="' + esc(f.p || "") + '"></label></div>' +
     '<div class="sugs" id="shopSug" role="group" aria-label="お店の候補" hidden></div>' +
     '<label class="f">メモ（任意）<input class="field" id="fMemo" placeholder="買った物・内容など" autocomplete="off" value="' + esc(f.m) + '"></label>' +
-    '<div class="sugs" id="memoSug" role="group" aria-label="メモの候補" hidden></div>' +
     '<div class="chips" role="group" aria-label="項目">' + chips + '</div>' +
     '<div id="subBox"></div>' +
     (editing
@@ -883,12 +882,6 @@ function viewSettings(){
           '<span class="sug"><i style="background:' + colorOf(x.c) + '"></i>' + esc(x.p) + '<small class="num">' + x.n + '回</small><button class="x" data-act="delShop" data-p="' + esc(x.p) + '" data-t="' + x.t + '" aria-label="' + esc(x.p) + 'を候補から外す">×</button></span>').join("") + '</div>'
       : '<p class="note">お店を入れて記帳すると、ここに候補として登録されます。</p>') +
     '<p class="note">お店の候補を選ぶと、前回と同じ項目・小分類も自動で入ります。使わなくなった候補は × で外せます。</p></section>' +
-    '<section class="card"><h2>メモの入力候補</h2>' +
-    (S.memos.length
-      ? '<div class="sugs wrapall">' + S.memos.slice().sort((a, b) => b.n - a.n || b.last - a.last).map(x =>
-          '<span class="sug"><i style="background:' + colorOf(x.c) + '"></i>' + esc(x.m) + '<small class="num">' + x.n + '回</small><button class="x" data-act="delMemo" data-m="' + esc(x.m) + '" data-t="' + x.t + '" aria-label="' + esc(x.m) + 'を候補から外す">×</button></span>').join("") + '</div>'
-      : '<p class="note">メモを入れて記帳すると、ここに候補として登録されます。</p>') +
-    '<p class="note">使わなくなった候補は × で外せます。記帳済みの明細には影響しません。</p></section>' +
     '<section class="card"><h2>データの保存先</h2><div class="status' + (local ? " local" : "") + '"><i></i><span>' +
     (local ? (syncCfg().url ? "このiPhoneの中に保存し、変更のたびにGoogleスプレッドシートにも自動で保存しています。" : "このiPhoneの中に保存しています。Safariの履歴やWebサイトデータを消去すると失われるおそれがあるため、Googleスプレッドシート連携か、月に一度のバックアップをおすすめします。") : "claude.ai のクラウドに保存しています。iPhoneとPCのどちらからでも同じデータを使えます。") + '</span></div>' + (APP_VERSION ? '<p class="note num">バージョン ' + APP_VERSION + '</p>' : '') + '</section>' +
     '<section class="card"><h2>バックアップと引き継ぎ</h2>' +
@@ -931,7 +924,6 @@ async function saveEntry(){
     if (f.origYm && f.origYm !== ym) await S.store.mutate("months/" + f.origYm, b => Object.assign({}, b, { entries: ((b && b.entries) || []).filter(x => x.id !== e.id) }));
     await S.store.mutate("months/" + ym, b => { const list = (b && b.entries) || []; const i = list.findIndex(x => x.id === e.id); if (i >= 0) list[i] = e; else list.push(e); list.sort(byDate); return Object.assign({}, b, { entries: list }); });
     await addMonthIndex(ym);
-    rememberMemo(e).catch(() => {});
     rememberShop(e).catch(() => {});
     toast(editing ? "更新しました" : TYPE_LABEL[e.t] + " " + yen(a) + " を記帳しました");
     S.form = blankForm(editing ? null : f);
